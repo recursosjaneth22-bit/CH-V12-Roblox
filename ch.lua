@@ -1,6 +1,5 @@
 --==================================================
--- 😈 CH V12.5 - CLEAN UI
--- Sin Silent Aim + Hitbox Color + Transparencia
+-- 😈 CH V12.5 - CLEAN UI + TRIGGERBOT RÁPIDO
 --==================================================
 
 local Players = game:GetService("Players")
@@ -38,6 +37,12 @@ local ignoreFriends = true
 local ignoreTeam = true
 local aimThroughWalls = false
 
+-- TRIGGERBOT
+local triggerbotEnabled = false
+local triggerbotDelay = 0.015
+local triggerbotRange = 300
+local lastTriggerShot = 0
+
 -- ESP
 local espEnabled = false
 local espNames = true
@@ -54,13 +59,13 @@ local hitboxColor = Color3.fromRGB(200, 45, 75)
 local currentColorIndex = 1
 
 local hitboxColors = {
-	Color3.fromRGB(200, 45, 75),   -- Rojo
-	Color3.fromRGB(40, 120, 230),  -- Azul
-	Color3.fromRGB(35, 160, 85),   -- Verde
-	Color3.fromRGB(255, 170, 0),   -- Naranja
-	Color3.fromRGB(180, 70, 255),  -- Morado
-	Color3.fromRGB(0, 220, 220),   -- Cyan
-	Color3.fromRGB(255, 255, 255), -- Blanco
+	Color3.fromRGB(200, 45, 75),
+	Color3.fromRGB(40, 120, 230),
+	Color3.fromRGB(35, 160, 85),
+	Color3.fromRGB(255, 170, 0),
+	Color3.fromRGB(180, 70, 255),
+	Color3.fromRGB(0, 220, 220),
+	Color3.fromRGB(255, 255, 255)
 }
 local colorNames = {"Rojo", "Azul", "Verde", "Naranja", "Morado", "Cyan", "Blanco"}
 
@@ -375,7 +380,7 @@ local subtitle = Instance.new("TextLabel")
 subtitle.Size = UDim2.new(1, -60, 0, 16)
 subtitle.Position = UDim2.fromOffset(18, 32)
 subtitle.BackgroundTransparency = 1
-subtitle.Text = "CLEAN CONTROL PANEL"
+subtitle.Text = "TRIGGERBOT RÁPIDO"
 subtitle.TextColor3 = Theme.AccentLight
 subtitle.Font = Enum.Font.GothamBold
 subtitle.TextSize = 9
@@ -503,7 +508,7 @@ espTab.MouseButton1Click:Connect(function() showPage(espPage, espTab) end)
 playersTab.MouseButton1Click:Connect(function() showPage(playersPage, playersTab) end)
 configTab.MouseButton1Click:Connect(function() showPage(configPage, configTab) end)
 
---==================================================
+print("😈 PARTE 1 lista - Escribe 'parte 2'")--==================================================
 -- SLIDER
 --==================================================
 
@@ -595,11 +600,12 @@ local flyButton = makeButton(homePage, "🪽  Fly  •  OFF")
 local infiniteJumpButton = makeButton(homePage, "🦘  Infinite Jump  •  OFF")
 
 --==================================================
--- AIM
+-- AIM + TRIGGERBOT
 --==================================================
 
 makeSection(aimPage, "AIM SETTINGS")
 local aimButton = makeButton(aimPage, "🎯  Aim  •  OFF")
+local triggerbotButton = makeButton(aimPage, "🔫  Triggerbot  •  OFF")
 local aimHoldButton = makeButton(aimPage, "🔘  Modo tecla  •  TOGGLE")
 local friendsButton = makeButton(aimPage, "👥  Ignorar amigos  •  ON")
 local teamButton = makeButton(aimPage, "🟢  Ignorar equipo  •  ON")
@@ -610,6 +616,16 @@ aimFOVSlider.onChanged = function(value) aimFOV = value end
 
 local smoothSlider = createSlider(aimPage, "Suavizado  ", 5, 100, aimSmooth)
 smoothSlider.onChanged = function(value) aimSmooth = value end
+
+local triggerbotDelaySlider = createSlider(aimPage, "Trigger Delay  ", 1, 20, 3)
+triggerbotDelaySlider.onChanged = function(value)
+	triggerbotDelay = value / 200
+end
+
+local triggerbotRangeSlider = createSlider(aimPage, "Trigger Range  ", 50, 500, 300)
+triggerbotRangeSlider.onChanged = function(value)
+	triggerbotRange = value
+end
 
 local targetParts = {"Head", "UpperTorso", "HumanoidRootPart"}
 local targetIndex = 1
@@ -727,10 +743,71 @@ RunService:BindToRenderStep("CH_V12_Aim", Enum.RenderPriority.Camera.Value + 1, 
 	end
 end)
 
+--==================================================
+-- TRIGGERBOT RÁPIDO
+--==================================================
+
+local function isEnemyUnderCrosshair()
+	local mouse = LocalPlayer:GetMouse()
+	local target = mouse.Target
+	if not target then return false end
+
+	local character = target:FindFirstAncestorOfClass("Model")
+	if not character then return false end
+
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	if not humanoid or humanoid.Health <= 0 then return false end
+
+	local player = Players:GetPlayerFromCharacter(character)
+	if not isValidTarget(player) then return false end
+
+	if Root and character:FindFirstChild("HumanoidRootPart") then
+		local distance = (Root.Position - character.HumanoidRootPart.Position).Magnitude
+		if distance > triggerbotRange then
+			return false
+		end
+	end
+
+	return true
+end
+
+local function doTriggerbot()
+	if not triggerbotEnabled then return end
+
+	local now = os.clock()
+	if now - lastTriggerShot < triggerbotDelay then return end
+
+	if isEnemyUnderCrosshair() then
+		lastTriggerShot = now
+
+		if mouse1press then
+			mouse1press()
+			task.wait(0.005)
+			if mouse1release then
+				mouse1release()
+			end
+		else
+			local VirtualUser = game:GetService("VirtualUser")
+			VirtualUser:CaptureController()
+			VirtualUser:ClickButton1(Vector2.new())
+		end
+	end
+end
+
+RunService.RenderStepped:Connect(function()
+	doTriggerbot()
+end)
+
+-- Botones AIM
 aimButton.MouseButton1Click:Connect(function()
 	aimEnabled = not aimEnabled
 	aimButton.Text = aimEnabled and "🎯  Aim  •  ON" or "🎯  Aim  •  OFF"
 	if not aimEnabled then fovCircle.Visible = false end
+end)
+
+triggerbotButton.MouseButton1Click:Connect(function()
+	triggerbotEnabled = not triggerbotEnabled
+	triggerbotButton.Text = triggerbotEnabled and "🔫  Triggerbot  •  ON" or "🔫  Triggerbot  •  OFF"
 end)
 
 aimHoldButton.MouseButton1Click:Connect(function()
@@ -1111,13 +1188,7 @@ local function setSprint(state)
 end
 sprintButton.MouseButton1Click:Connect(function() setSprint(not sprintEnabled) end)
 
-UserInputService.InputBegan:Connect(function(input, processed)
-	if processed then return end
-	if input.KeyCode == Enum.KeyCode.LeftShift then setSprint(true) end
-end)
-UserInputService.InputEnded:Connect(function(input)
-	if input.KeyCode == Enum.KeyCode.LeftShift then setSprint(false) end
-end)
+-- Sin LeftShift (solo se activa con el botón)
 
 infiniteJumpButton.MouseButton1Click:Connect(function()
 	infiniteJump = not infiniteJump
@@ -1262,6 +1333,7 @@ closeForever.MouseButton1Click:Connect(function()
 	setSprint(false)
 	setNoclip(false)
 	aimEnabled = false
+	triggerbotEnabled = false
 	for plr in pairs(ESP) do removeESP(plr) end
 	clearHitboxes()
 	gui:Destroy()
@@ -1330,7 +1402,7 @@ local function authenticate()
 		menu.Visible = true
 		floatingButton.Visible = false
 		showPage(homePage, homeTab)
-		print("😈 CH V12.5 iniciado")
+		print("😈 CH V12.5 + Triggerbot Rápido iniciado")
 	else
 		passwordBox.Text = ""
 		passwordBox.PlaceholderText = "Contraseña incorrecta"
@@ -1345,4 +1417,4 @@ passwordFrame.Visible = true
 menu.Visible = false
 floatingButton.Visible = false
 
-print("😈 CH V12.5 cargado | Hitbox con Color + Transparencia")
+print("😈 CH V12.5 + Triggerbot Rápido cargado")
