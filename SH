@@ -1,7 +1,7 @@
 --==================================================
 -- 😈 CH PC - Trigger + Macro + ESP
 -- TRIGGER | MACRO | ESP | MENU
--- Macro: 2 saca arma → dispara → 2 guarda arma
+-- Macro: 2 saca → dispara → 2 guarda
 --==================================================
 
 local Players = game:GetService("Players")
@@ -15,17 +15,18 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local Mouse = LocalPlayer:GetMouse()
 
 local MenuKey = Enum.KeyCode.RightControl
+local TriggerKey = Enum.KeyCode.E -- tecla para activar/desactivar trigger
 
 local triggerbotEnabled = false
-local triggerbotDelay = 0.05
+local triggerbotDelay = 0.02
 local lastTriggerShot = 0
 
 local macroEnabled = false
-local macroDelay = 0.08
+local macroDelay = 0.05
 local lastMacroShot = 0
 local lastEquipTime = 0
 local equipCooldown = 0.35
-local gunKey = Enum.KeyCode.Two -- sacar y guardar con 2
+local gunKey = Enum.KeyCode.Two
 
 local ignoreFriends = true
 local ignoreTeam = true
@@ -41,6 +42,7 @@ local ESP = {}
 local Character, Root
 local menuClosedForever = false
 local waitingMenuKey = false
+local waitingTriggerKey = false
 local activeSlider = nil
 local draggingMenu = false
 local dragStart, menuStart
@@ -57,6 +59,12 @@ local Theme = {
 	Track = Color3.fromRGB(45, 45, 55),
 	White = Color3.fromRGB(255, 255, 255)
 }
+
+-- 1 = muy rápido | 100 = muy lento
+local function speedToDelay(v)
+	v = math.clamp(v, 1, 100)
+	return 0.001 + ((v - 1) / 99) * 0.75
+end
 
 local function setupChar(char)
 	Character = char
@@ -117,7 +125,7 @@ local function makeSection(parent, titleText)
 end
 
 local menu = Instance.new("Frame")
-menu.Size = UDim2.fromOffset(360, 460)
+menu.Size = UDim2.fromOffset(360, 480)
 menu.Position = UDim2.fromOffset(30, 50)
 menu.BackgroundColor3 = Theme.Background
 menu.BorderSizePixel = 0
@@ -314,15 +322,16 @@ end
 
 makeSection(triggerPage, "TRIGGERBOT")
 local triggerbotButton = makeButton(triggerPage, "🔫  Triggerbot  •  OFF")
-local delaySlider = createSlider(triggerPage, "Velocidad (1=rápido)  ", 1, 50, 5)
-delaySlider.onChanged = function(v) triggerbotDelay = v / 100 end
+local triggerKeyButton = makeButton(triggerPage, "⌨  Tecla Trigger  •  " .. TriggerKey.Name)
+local delaySlider = createSlider(triggerPage, "Velocidad 1=rápido 100=lento  ", 1, 100, 15)
+delaySlider.onChanged = function(v) triggerbotDelay = speedToDelay(v) end
 local friendsButton = makeButton(triggerPage, "👥  Ignorar amigos  •  ON")
 local teamButton = makeButton(triggerPage, "🟢  Ignorar equipo  •  ON")
 
 makeSection(macroPage, "TRIGGER CON MACRO")
 local macroButton = makeButton(macroPage, "⚡  Macro Trigger  •  OFF")
-local macroDelaySlider = createSlider(macroPage, "Delay disparo  ", 1, 50, 8)
-macroDelaySlider.onChanged = function(v) macroDelay = v / 100 end
+local macroDelaySlider = createSlider(macroPage, "Velocidad 1=rápido 100=lento  ", 1, 100, 20)
+macroDelaySlider.onChanged = function(v) macroDelay = speedToDelay(v) end
 local infoLabel = Instance.new("TextLabel")
 infoLabel.Size = UDim2.new(1, 0, 0, 50)
 infoLabel.BackgroundTransparency = 1
@@ -344,7 +353,7 @@ local espDistSlider = createSlider(espPage, "Distancia ESP  ", 100, 2000, 1000)
 espDistSlider.onChanged = function(v) espMaxDistance = v end
 
 makeSection(menuPage, "MENU")
-local keyButton = makeButton(menuPage, "⌨  Tecla  •  " .. MenuKey.Name)
+local keyButton = makeButton(menuPage, "⌨  Tecla menú  •  " .. MenuKey.Name)
 local closeForever = makeButton(menuPage, "🔒  Cerrar para siempre")
 
 local floatingButton = Instance.new("TextButton")
@@ -407,7 +416,7 @@ local function pressKey(keyCode)
 	end)
 	pcall(function()
 		if keypress and keyrelease then
-			keypress(0x32) -- tecla 2
+			keypress(0x32)
 			task.wait(0.03)
 			keyrelease(0x32)
 		end
@@ -451,10 +460,7 @@ end
 local function doMacroTrigger()
 	if not macroEnabled then return end
 	if not isEnemyExactlyUnderCrosshair() then return end
-
 	local now = os.clock()
-
-	-- 1) Sacar arma (2)
 	if not hasGunEquipped() then
 		if now - lastEquipTime >= equipCooldown then
 			lastEquipTime = now
@@ -462,13 +468,9 @@ local function doMacroTrigger()
 		end
 		return
 	end
-
-	-- 2) Disparar
 	if now - lastMacroShot < macroDelay then return end
 	lastMacroShot = now
 	clickMouse()
-
-	-- 3) Guardar arma (2 otra vez)
 	task.delay(0.12, function()
 		if Character and Character:FindFirstChildOfClass("Tool") then
 			pressKey(gunKey)
@@ -578,14 +580,26 @@ task.spawn(function()
 	end
 end)
 
+local function setTriggerState(on)
+	triggerbotEnabled = on
+	triggerbotButton.Text = on and "🔫  Triggerbot  •  ON" or "🔫  Triggerbot  •  OFF"
+end
+
 triggerbotButton.MouseButton1Click:Connect(function()
-	triggerbotEnabled = not triggerbotEnabled
-	triggerbotButton.Text = triggerbotEnabled and "🔫  Triggerbot  •  ON" or "🔫  Triggerbot  •  OFF"
+	setTriggerState(not triggerbotEnabled)
 end)
+
+triggerKeyButton.MouseButton1Click:Connect(function()
+	waitingTriggerKey = true
+	waitingMenuKey = false
+	triggerKeyButton.Text = "⌨  Presiona tecla Trigger..."
+end)
+
 friendsButton.MouseButton1Click:Connect(function()
 	ignoreFriends = not ignoreFriends
 	friendsButton.Text = ignoreFriends and "👥  Ignorar amigos  •  ON" or "👥  Ignorar amigos  •  OFF"
 end)
+
 teamButton.MouseButton1Click:Connect(function()
 	ignoreTeam = not ignoreTeam
 	teamButton.Text = ignoreTeam and "🟢  Ignorar equipo  •  ON" or "🟢  Ignorar equipo  •  OFF"
@@ -621,8 +635,10 @@ end)
 
 keyButton.MouseButton1Click:Connect(function()
 	waitingMenuKey = true
-	keyButton.Text = "⌨  Presiona tecla..."
+	waitingTriggerKey = false
+	keyButton.Text = "⌨  Presiona tecla menú..."
 end)
+
 closeForever.MouseButton1Click:Connect(function()
 	menuClosedForever = true
 	triggerbotEnabled = false
@@ -633,15 +649,32 @@ closeForever.MouseButton1Click:Connect(function()
 end)
 
 UserInputService.InputBegan:Connect(function(input, processed)
+	if waitingTriggerKey and input.UserInputType == Enum.UserInputType.Keyboard then
+		if input.KeyCode ~= Enum.KeyCode.Unknown then
+			TriggerKey = input.KeyCode
+			waitingTriggerKey = false
+			triggerKeyButton.Text = "⌨  Tecla Trigger  •  " .. TriggerKey.Name
+		end
+		return
+	end
+
 	if waitingMenuKey and input.UserInputType == Enum.UserInputType.Keyboard then
 		if input.KeyCode ~= Enum.KeyCode.Unknown then
 			MenuKey = input.KeyCode
 			waitingMenuKey = false
-			keyButton.Text = "⌨  Tecla  •  " .. MenuKey.Name
+			keyButton.Text = "⌨  Tecla menú  •  " .. MenuKey.Name
 		end
 		return
 	end
+
 	if processed then return end
+
+	-- Tecla del trigger (ON/OFF)
+	if input.KeyCode == TriggerKey then
+		setTriggerState(not triggerbotEnabled)
+		return
+	end
+
 	if input.KeyCode == MenuKey then
 		if menu.Visible then setMenuVisible(false, false) else setMenuVisible(true, false) end
 	end
@@ -673,5 +706,9 @@ UserInputService.InputEnded:Connect(function(input)
 	end
 end)
 
+-- delays iniciales
+triggerbotDelay = speedToDelay(15)
+macroDelay = speedToDelay(20)
+
 showPage(triggerPage, triggerTab)
-print("😈 CH PC | MACRO: 2 saca → dispara → 2 guarda")
+print("😈 CH PC | Velocidad 1-100 + tecla Trigger")
