@@ -1,5 +1,6 @@
 --==================================================
--- 😈 CH Aim + ESP + Hitbox (Delta)
+-- 😈 CH Aim - Pestañas separadas (Delta)
+-- AIM | ESP | HITBOX | MENU
 --==================================================
 
 local Players = game:GetService("Players")
@@ -23,6 +24,8 @@ local ignoreFriends = true
 local ignoreTeam = true
 local currentAimTarget = nil
 local lastTargetUpdate = 0
+local targetParts = {"Head", "UpperTorso", "HumanoidRootPart"}
+local targetIndex = 1
 
 -- ESP
 local espEnabled = false
@@ -41,7 +44,7 @@ local hitboxSize = 8
 local hitboxTransparency = 0.65
 local hitboxParts = {}
 
-local Character, Humanoid, Root
+local Character, Root
 local menuClosedForever = false
 local waitingMenuKey = false
 local activeSlider = nil
@@ -63,14 +66,13 @@ local Theme = {
 
 local function setupChar(char)
 	Character = char
-	Humanoid = char:WaitForChild("Humanoid", 5)
 	Root = char:WaitForChild("HumanoidRootPart", 5)
 end
 if LocalPlayer.Character then task.spawn(setupChar, LocalPlayer.Character) end
 LocalPlayer.CharacterAdded:Connect(setupChar)
 
 local gui = Instance.new("ScreenGui")
-gui.Name = "CH_AimESP_Hitbox"
+gui.Name = "CH_Tabs"
 gui.ResetOnSpawn = false
 gui.IgnoreGuiInset = true
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -122,7 +124,7 @@ end
 
 -- MENU
 local menu = Instance.new("Frame")
-menu.Size = UDim2.fromOffset(360, 520)
+menu.Size = UDim2.fromOffset(380, 500)
 menu.Position = UDim2.fromOffset(30, 50)
 menu.BackgroundColor3 = Theme.Background
 menu.BorderSizePixel = 0
@@ -132,14 +134,14 @@ menu.Parent = gui
 corner(menu, 14)
 
 local header = Instance.new("Frame")
-header.Size = UDim2.new(1, 0, 0, 52)
+header.Size = UDim2.new(1, 0, 0, 50)
 header.BackgroundColor3 = Theme.Panel
 header.BorderSizePixel = 0
 header.Parent = menu
 corner(header, 14)
 
 local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, -50, 0, 24)
+title.Size = UDim2.new(1, -50, 0, 22)
 title.Position = UDim2.fromOffset(14, 6)
 title.BackgroundTransparency = 1
 title.Text = "😈  CH Aim"
@@ -151,9 +153,9 @@ title.Parent = header
 
 local subtitle = Instance.new("TextLabel")
 subtitle.Size = UDim2.new(1, -50, 0, 14)
-subtitle.Position = UDim2.fromOffset(14, 30)
+subtitle.Position = UDim2.fromOffset(14, 28)
 subtitle.BackgroundTransparency = 1
-subtitle.Text = "AIM  |  ESP  |  HITBOX"
+subtitle.Text = "PESTAÑAS SEPARADAS"
 subtitle.TextColor3 = Theme.AccentLight
 subtitle.Font = Enum.Font.GothamBold
 subtitle.TextSize = 9
@@ -162,9 +164,8 @@ subtitle.Parent = header
 
 local closeButton = Instance.new("TextButton")
 closeButton.Size = UDim2.fromOffset(28, 28)
-closeButton.Position = UDim2.new(1, -40, 0, 12)
+closeButton.Position = UDim2.new(1, -38, 0, 11)
 closeButton.BackgroundColor3 = Theme.Element
-closeButton.BorderSizePixel = 0
 closeButton.Text = "×"
 closeButton.TextColor3 = Theme.SubText
 closeButton.Font = Enum.Font.GothamBold
@@ -172,22 +173,83 @@ closeButton.TextSize = 16
 closeButton.Parent = header
 corner(closeButton, 7)
 
-local content = Instance.new("ScrollingFrame")
-content.Size = UDim2.new(1, -24, 1, -68)
-content.Position = UDim2.fromOffset(12, 60)
-content.BackgroundTransparency = 1
-content.BorderSizePixel = 0
-content.ScrollBarThickness = 3
-content.ScrollBarImageColor3 = Theme.Accent
-content.CanvasSize = UDim2.fromOffset(0, 0)
-content.Parent = menu
+-- TABS
+local tabFrame = Instance.new("Frame")
+tabFrame.Size = UDim2.new(1, -20, 0, 32)
+tabFrame.Position = UDim2.fromOffset(10, 56)
+tabFrame.BackgroundTransparency = 1
+tabFrame.Parent = menu
 
-local layout = Instance.new("UIListLayout")
-layout.Padding = UDim.new(0, 6)
-layout.Parent = content
-layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-	content.CanvasSize = UDim2.fromOffset(0, layout.AbsoluteContentSize.Y + 12)
-end)
+local contentHolder = Instance.new("Frame")
+contentHolder.Size = UDim2.new(1, -20, 1, -100)
+contentHolder.Position = UDim2.fromOffset(10, 94)
+contentHolder.BackgroundTransparency = 1
+contentHolder.Parent = menu
+
+local pages = {}
+local tabs = {}
+
+local function createPage()
+	local p = Instance.new("ScrollingFrame")
+	p.Size = UDim2.fromScale(1, 1)
+	p.BackgroundTransparency = 1
+	p.BorderSizePixel = 0
+	p.ScrollBarThickness = 3
+	p.ScrollBarImageColor3 = Theme.Accent
+	p.CanvasSize = UDim2.fromOffset(0, 0)
+	p.Visible = false
+	p.Parent = contentHolder
+	local lay = Instance.new("UIListLayout")
+	lay.Padding = UDim.new(0, 6)
+	lay.Parent = p
+	lay:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+		p.CanvasSize = UDim2.fromOffset(0, lay.AbsoluteContentSize.Y + 12)
+	end)
+	table.insert(pages, p)
+	return p
+end
+
+local aimPage = createPage()
+local espPage = createPage()
+local hitboxPage = createPage()
+local menuPage = createPage()
+
+local function makeTab(text, order)
+	local b = Instance.new("TextButton")
+	b.Size = UDim2.new(0.25, -4, 1, 0)
+	b.Position = UDim2.new(order, 0, 0, 0)
+	b.BackgroundColor3 = Theme.Element
+	b.BorderSizePixel = 0
+	b.Text = text
+	b.TextColor3 = Theme.SubText
+	b.Font = Enum.Font.GothamBold
+	b.TextSize = 11
+	b.Parent = tabFrame
+	corner(b, 6)
+	table.insert(tabs, b)
+	return b
+end
+
+local aimTab = makeTab("AIM", 0)
+local espTab = makeTab("ESP", 0.25)
+local hitboxTab = makeTab("HITBOX", 0.5)
+local configTab = makeTab("MENU", 0.75)
+
+local function showPage(page, selected)
+	for _, p in ipairs(pages) do p.Visible = false end
+	page.Visible = true
+	for _, t in ipairs(tabs) do
+		t.BackgroundColor3 = Theme.Element
+		t.TextColor3 = Theme.SubText
+	end
+	selected.BackgroundColor3 = Theme.Accent
+	selected.TextColor3 = Theme.White
+end
+
+aimTab.MouseButton1Click:Connect(function() showPage(aimPage, aimTab) end)
+espTab.MouseButton1Click:Connect(function() showPage(espPage, espTab) end)
+hitboxTab.MouseButton1Click:Connect(function() showPage(hitboxPage, hitboxTab) end)
+configTab.MouseButton1Click:Connect(function() showPage(menuPage, configTab) end)
 
 local function createSlider(parent, text, min, max, value)
 	local holder = Instance.new("Frame")
@@ -259,19 +321,18 @@ local function createSlider(parent, text, min, max, value)
 	return slider
 end
 
---========== AIM ==========
-makeSection(content, "AIMBOT")
-local aimButton = makeButton(content, "🎯  Aimbot  •  OFF")
-local aimHoldButton = makeButton(content, "🔘  Modo  •  TOGGLE")
-local friendsButton = makeButton(content, "👥  Ignorar amigos  •  ON")
-local teamButton = makeButton(content, "🟢  Ignorar equipo  •  ON")
-local targetButton = makeButton(content, "🎯  Objetivo  •  Head")
-local fovSlider = createSlider(content, "FOV  ", 40, 400, aimFOV)
+--========== PESTAÑA AIM ==========
+makeSection(aimPage, "AIMBOT")
+local aimButton = makeButton(aimPage, "🎯  Aimbot  •  OFF")
+local aimHoldButton = makeButton(aimPage, "🔘  Modo  •  TOGGLE")
+local friendsButton = makeButton(aimPage, "👥  Ignorar amigos  •  ON")
+local teamButton = makeButton(aimPage, "🟢  Ignorar equipo  •  ON")
+local targetButton = makeButton(aimPage, "🎯  Objetivo  •  Head")
+local fovSlider = createSlider(aimPage, "FOV  ", 40, 400, aimFOV)
 fovSlider.onChanged = function(v) aimFOV = v end
-local smoothSlider = createSlider(content, "Suavizado  ", 1, 100, aimSmooth)
+local smoothSlider = createSlider(aimPage, "Suavizado  ", 1, 100, aimSmooth)
 smoothSlider.onChanged = function(v) aimSmooth = v end
 
--- FOV circle
 local fovCircle = Instance.new("Frame")
 fovCircle.AnchorPoint = Vector2.new(0.5, 0.5)
 fovCircle.Position = UDim2.fromScale(0.5, 0.5)
@@ -286,38 +347,33 @@ fovStroke.Thickness = 1.2
 fovStroke.Transparency = 0.35
 fovStroke.Parent = fovCircle
 
---========== ESP ==========
-makeSection(content, "ESP")
-local espButton = makeButton(content, "👁  ESP  •  OFF")
-local espNamesButton = makeButton(content, "🏷  Nombres  •  ON")
-local espHealthButton = makeButton(content, "❤️  Vida  •  ON")
-local espDistanceButton = makeButton(content, "📏  Distancia  •  ON")
-local espBoxesButton = makeButton(content, "⬜  Boxes  •  ON")
-local espDistSlider = createSlider(content, "Distancia ESP  ", 100, 2000, espMaxDistance)
+--========== PESTAÑA ESP ==========
+makeSection(espPage, "ESP SETTINGS")
+local espButton = makeButton(espPage, "👁  ESP  •  OFF")
+local espNamesButton = makeButton(espPage, "🏷  Nombres  •  ON")
+local espHealthButton = makeButton(espPage, "❤️  Vida  •  ON")
+local espDistanceButton = makeButton(espPage, "📏  Distancia  •  ON")
+local espBoxesButton = makeButton(espPage, "⬜  Boxes  •  ON")
+local espDistSlider = createSlider(espPage, "Distancia ESP  ", 100, 2000, espMaxDistance)
 espDistSlider.onChanged = function(v) espMaxDistance = v end
 
---========== HITBOX ==========
-makeSection(content, "HITBOX")
-local hitboxButton = makeButton(content, "📦  Hitbox  •  OFF")
-local hitboxSizeSlider = createSlider(content, "Tamaño  ", 2, 25, hitboxSize)
-hitboxSizeSlider.onChanged = function(v)
-	hitboxSize = v
-end
-local hitboxTransSlider = createSlider(content, "Transparencia  ", 0, 100, math.floor(hitboxTransparency * 100))
-hitboxTransSlider.onChanged = function(v)
-	hitboxTransparency = v / 100
-end
+--========== PESTAÑA HITBOX ==========
+makeSection(hitboxPage, "HITBOX EXPANDER")
+local hitboxButton = makeButton(hitboxPage, "📦  Hitbox  •  OFF")
+local hitboxSizeSlider = createSlider(hitboxPage, "Tamaño  ", 2, 25, hitboxSize)
+hitboxSizeSlider.onChanged = function(v) hitboxSize = v end
+local hitboxTransSlider = createSlider(hitboxPage, "Transparencia  ", 0, 100, 65)
+hitboxTransSlider.onChanged = function(v) hitboxTransparency = v / 100 end
 
---========== MENU ==========
-makeSection(content, "MENU")
-local keyButton = makeButton(content, "⌨  Tecla del menú  •  " .. MenuKey.Name)
-local closeForever = makeButton(content, "🔒  Cerrar para siempre")
+--========== PESTAÑA MENU ==========
+makeSection(menuPage, "MENU")
+local keyButton = makeButton(menuPage, "⌨  Tecla del menú  •  " .. MenuKey.Name)
+local closeForever = makeButton(menuPage, "🔒  Cerrar para siempre")
 
 local floatingButton = Instance.new("TextButton")
 floatingButton.Size = UDim2.fromOffset(46, 46)
 floatingButton.Position = UDim2.fromOffset(25, 280)
 floatingButton.BackgroundColor3 = Theme.Accent
-floatingButton.BorderSizePixel = 0
 floatingButton.Text = "😈"
 floatingButton.TextSize = 18
 floatingButton.Visible = false
@@ -327,25 +383,19 @@ corner(floatingButton, 23)
 local function setMenuVisible(state, showBall)
 	if menuClosedForever then return end
 	menu.Visible = state
-	if state then
-		floatingButton.Visible = false
-	else
-		floatingButton.Visible = showBall == true
-	end
+	floatingButton.Visible = (not state) and (showBall == true)
 end
 
 closeButton.MouseButton1Click:Connect(function() setMenuVisible(false, true) end)
 floatingButton.MouseButton1Click:Connect(function() setMenuVisible(true, false) end)
 
 --==================================================
--- FILTROS
+-- LOGIC
 --==================================================
 
 local function isFriend(plr)
 	if not ignoreFriends or not plr then return false end
-	local ok, friend = pcall(function()
-		return LocalPlayer:IsFriendsWith(plr.UserId)
-	end)
+	local ok, friend = pcall(function() return LocalPlayer:IsFriendsWith(plr.UserId) end)
 	return ok and friend == true
 end
 
@@ -367,19 +417,11 @@ local function getEspColor(plr)
 	return COLOR_ENEMY
 end
 
---==================================================
--- AIMBOT
---==================================================
-
-local targetParts = {"Head", "UpperTorso", "HumanoidRootPart"}
-local targetIndex = 1
-
 local function getClosestTarget()
 	local camera = workspace.CurrentCamera
 	if not camera then return nil end
 	local center = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
 	local closest, closestDist = nil, aimFOV
-
 	for _, plr in ipairs(Players:GetPlayers()) do
 		if isValidTarget(plr) then
 			local char = plr.Character
@@ -402,46 +444,33 @@ local function getClosestTarget()
 	return closest
 end
 
-RunService:BindToRenderStep("CH_Aim", Enum.RenderPriority.Camera.Value + 1, function()
+RunService:BindToRenderStep("CH_Aim_Tabs", Enum.RenderPriority.Camera.Value + 1, function()
 	fovCircle.Size = UDim2.fromOffset(aimFOV * 2, aimFOV * 2)
-
 	if not aimEnabled then
 		currentAimTarget = nil
 		fovCircle.Visible = false
 		return
 	end
-
 	if aimHoldMode and not aimHeld then
 		currentAimTarget = nil
 		fovCircle.Visible = true
 		return
 	end
-
 	fovCircle.Visible = true
 	local camera = workspace.CurrentCamera
 	if not camera then return end
-
 	local now = os.clock()
 	if now - lastTargetUpdate >= 0.03 then
 		lastTargetUpdate = now
 		currentAimTarget = getClosestTarget()
 	end
-
 	if currentAimTarget and currentAimTarget.Parent then
 		local hum = currentAimTarget.Parent:FindFirstChildOfClass("Humanoid")
-		if not hum or hum.Health <= 0 then
-			currentAimTarget = nil
-			return
-		end
+		if not hum or hum.Health <= 0 then currentAimTarget = nil return end
 		local targetCF = CFrame.lookAt(camera.CFrame.Position, currentAimTarget.Position)
-		local smooth = math.clamp(aimSmooth / 100, 0.01, 1)
-		camera.CFrame = camera.CFrame:Lerp(targetCF, smooth)
+		camera.CFrame = camera.CFrame:Lerp(targetCF, math.clamp(aimSmooth / 100, 0.01, 1))
 	end
 end)
-
---==================================================
--- ESP
---==================================================
 
 local function removeESP(plr)
 	local data = ESP[plr]
@@ -460,29 +489,25 @@ local function createESP(plr)
 	local root = char:FindFirstChild("HumanoidRootPart")
 	local hum = char:FindFirstChildOfClass("Humanoid")
 	if not root or not hum then return end
-
 	local color = getEspColor(plr)
 	local data = {character = char, root = root, humanoid = hum}
-
 	if espBoxes then
-		local highlight = Instance.new("Highlight")
-		highlight.Adornee = char
-		highlight.FillColor = color
-		highlight.OutlineColor = color
-		highlight.FillTransparency = 0.8
-		highlight.OutlineTransparency = 0.1
-		highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-		highlight.Parent = gui
-		data.highlight = highlight
+		local hl = Instance.new("Highlight")
+		hl.Adornee = char
+		hl.FillColor = color
+		hl.OutlineColor = color
+		hl.FillTransparency = 0.8
+		hl.OutlineTransparency = 0.1
+		hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+		hl.Parent = gui
+		data.highlight = hl
 	end
-
-	local billboard = Instance.new("BillboardGui")
-	billboard.Adornee = root
-	billboard.Size = UDim2.fromOffset(160, 55)
-	billboard.StudsOffset = Vector3.new(0, 3, 0)
-	billboard.AlwaysOnTop = true
-	billboard.Parent = gui
-
+	local bill = Instance.new("BillboardGui")
+	bill.Adornee = root
+	bill.Size = UDim2.fromOffset(160, 55)
+	bill.StudsOffset = Vector3.new(0, 3, 0)
+	bill.AlwaysOnTop = true
+	bill.Parent = gui
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.fromScale(1, 1)
 	label.BackgroundTransparency = 1
@@ -490,9 +515,8 @@ local function createESP(plr)
 	label.TextStrokeTransparency = 0.35
 	label.Font = Enum.Font.GothamBold
 	label.TextSize = 11
-	label.Parent = billboard
-
-	data.billboard = billboard
+	label.Parent = bill
+	data.billboard = bill
 	data.label = label
 	ESP[plr] = data
 end
@@ -546,10 +570,6 @@ local function updateESP()
 	end
 end
 
---==================================================
--- HITBOX
---==================================================
-
 local function clearHitboxes()
 	for _, part in pairs(hitboxParts) do
 		if part and part.Parent then part:Destroy() end
@@ -560,7 +580,6 @@ end
 local function updateHitboxes()
 	clearHitboxes()
 	if not hitboxEnabled then return end
-
 	for _, plr in ipairs(Players:GetPlayers()) do
 		if isValidTarget(plr) and plr.Character then
 			local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
@@ -577,7 +596,6 @@ local function updateHitboxes()
 				box.CanTouch = false
 				box.Parent = workspace
 				table.insert(hitboxParts, box)
-
 				local conn
 				conn = RunService.Heartbeat:Connect(function()
 					if not hitboxEnabled or not box.Parent or not hrp.Parent then
@@ -594,10 +612,6 @@ local function updateHitboxes()
 	end
 end
 
---==================================================
--- LOOPS + BOTONES
---==================================================
-
 task.spawn(function()
 	while gui.Parent do
 		if espEnabled then updateESP() end
@@ -605,72 +619,67 @@ task.spawn(function()
 	end
 end)
 
+-- Botones AIM
 aimButton.MouseButton1Click:Connect(function()
 	aimEnabled = not aimEnabled
 	aimButton.Text = aimEnabled and "🎯  Aimbot  •  ON" or "🎯  Aimbot  •  OFF"
 	if not aimEnabled then fovCircle.Visible = false end
 end)
-
 aimHoldButton.MouseButton1Click:Connect(function()
 	aimHoldMode = not aimHoldMode
 	aimHeld = false
 	aimHoldButton.Text = aimHoldMode and "🔘  Modo  •  HOLD (RMB)" or "🔘  Modo  •  TOGGLE"
 end)
-
 friendsButton.MouseButton1Click:Connect(function()
 	ignoreFriends = not ignoreFriends
 	friendsButton.Text = ignoreFriends and "👥  Ignorar amigos  •  ON" or "👥  Ignorar amigos  •  OFF"
 end)
-
 teamButton.MouseButton1Click:Connect(function()
 	ignoreTeam = not ignoreTeam
 	teamButton.Text = ignoreTeam and "🟢  Ignorar equipo  •  ON" or "🟢  Ignorar equipo  •  OFF"
 end)
-
 targetButton.MouseButton1Click:Connect(function()
 	targetIndex = targetIndex % #targetParts + 1
 	aimTargetPart = targetParts[targetIndex]
 	targetButton.Text = "🎯  Objetivo  •  " .. aimTargetPart
 end)
 
+-- Botones ESP
 espButton.MouseButton1Click:Connect(function()
 	espEnabled = not espEnabled
 	espButton.Text = espEnabled and "👁  ESP  •  ON" or "👁  ESP  •  OFF"
 	if not espEnabled then for plr in pairs(ESP) do removeESP(plr) end end
 end)
-
 espNamesButton.MouseButton1Click:Connect(function()
 	espNames = not espNames
 	espNamesButton.Text = espNames and "🏷  Nombres  •  ON" or "🏷  Nombres  •  OFF"
 end)
-
 espHealthButton.MouseButton1Click:Connect(function()
 	espHealth = not espHealth
 	espHealthButton.Text = espHealth and "❤️  Vida  •  ON" or "❤️  Vida  •  OFF"
 end)
-
 espDistanceButton.MouseButton1Click:Connect(function()
 	espDistance = not espDistance
 	espDistanceButton.Text = espDistance and "📏  Distancia  •  ON" or "📏  Distancia  •  OFF"
 end)
-
 espBoxesButton.MouseButton1Click:Connect(function()
 	espBoxes = not espBoxes
 	espBoxesButton.Text = espBoxes and "⬜  Boxes  •  ON" or "⬜  Boxes  •  OFF"
 	if espEnabled then for plr in pairs(ESP) do createESP(plr) end end
 end)
 
+-- Botones HITBOX
 hitboxButton.MouseButton1Click:Connect(function()
 	hitboxEnabled = not hitboxEnabled
 	hitboxButton.Text = hitboxEnabled and "📦  Hitbox  •  ON" or "📦  Hitbox  •  OFF"
 	updateHitboxes()
 end)
 
+-- Botones MENU
 keyButton.MouseButton1Click:Connect(function()
 	waitingMenuKey = true
 	keyButton.Text = "⌨  Presiona una tecla..."
 end)
-
 closeForever.MouseButton1Click:Connect(function()
 	menuClosedForever = true
 	aimEnabled = false
@@ -678,7 +687,7 @@ closeForever.MouseButton1Click:Connect(function()
 	hitboxEnabled = false
 	for plr in pairs(ESP) do removeESP(plr) end
 	clearHitboxes()
-	pcall(function() RunService:UnbindFromRenderStep("CH_Aim") end)
+	pcall(function() RunService:UnbindFromRenderStep("CH_Aim_Tabs") end)
 	gui:Destroy()
 end)
 
@@ -696,11 +705,7 @@ UserInputService.InputBegan:Connect(function(input, processed)
 		if aimHoldMode and aimEnabled then aimHeld = true end
 	end
 	if input.KeyCode == MenuKey then
-		if menu.Visible then
-			setMenuVisible(false, false)
-		else
-			setMenuVisible(true, false)
-		end
+		if menu.Visible then setMenuVisible(false, false) else setMenuVisible(true, false) end
 	end
 end)
 
@@ -734,4 +739,5 @@ UserInputService.InputChanged:Connect(function(input)
 	end
 end)
 
-print("😈 CH Aim + ESP + Hitbox cargado (Delta)")
+showPage(aimPage, aimTab)
+print("😈 CH Tabs cargado | AIM / ESP / HITBOX / MENU")
