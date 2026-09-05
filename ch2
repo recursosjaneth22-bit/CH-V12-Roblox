@@ -1,5 +1,5 @@
 --==================================================
--- 😈 CH Aim - Pestañas separadas (Delta)
+-- 😈 CH Aim - Pestañas + Drag móvil
 -- AIM | ESP | HITBOX | MENU
 --==================================================
 
@@ -49,7 +49,10 @@ local menuClosedForever = false
 local waitingMenuKey = false
 local activeSlider = nil
 local draggingMenu = false
+local draggingBall = false
 local dragStart, menuStart
+local ballStart, ballDragStart
+local ballMoved = false
 
 local Theme = {
 	Background = Color3.fromRGB(12, 12, 16),
@@ -63,6 +66,16 @@ local Theme = {
 	Track = Color3.fromRGB(45, 45, 55),
 	White = Color3.fromRGB(255, 255, 255)
 }
+
+local function isDragInput(input)
+	return input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch
+end
+
+local function isMoveInput(input)
+	return input.UserInputType == Enum.UserInputType.MouseMovement
+		or input.UserInputType == Enum.UserInputType.Touch
+end
 
 local function setupChar(char)
 	Character = char
@@ -122,7 +135,6 @@ local function makeSection(parent, titleText)
 	label.Parent = holder
 end
 
--- MENU
 local menu = Instance.new("Frame")
 menu.Size = UDim2.fromOffset(380, 500)
 menu.Position = UDim2.fromOffset(30, 50)
@@ -137,6 +149,7 @@ local header = Instance.new("Frame")
 header.Size = UDim2.new(1, 0, 0, 50)
 header.BackgroundColor3 = Theme.Panel
 header.BorderSizePixel = 0
+header.Active = true
 header.Parent = menu
 corner(header, 14)
 
@@ -155,7 +168,7 @@ local subtitle = Instance.new("TextLabel")
 subtitle.Size = UDim2.new(1, -50, 0, 14)
 subtitle.Position = UDim2.fromOffset(14, 28)
 subtitle.BackgroundTransparency = 1
-subtitle.Text = "PESTAÑAS SEPARADAS"
+subtitle.Text = "PESTAÑAS + DRAG MÓVIL"
 subtitle.TextColor3 = Theme.AccentLight
 subtitle.Font = Enum.Font.GothamBold
 subtitle.TextSize = 9
@@ -173,7 +186,6 @@ closeButton.TextSize = 16
 closeButton.Parent = header
 corner(closeButton, 7)
 
--- TABS
 local tabFrame = Instance.new("Frame")
 tabFrame.Size = UDim2.new(1, -20, 0, 32)
 tabFrame.Position = UDim2.fromOffset(10, 56)
@@ -307,7 +319,7 @@ local function createSlider(parent, text, min, max, value)
 	end
 
 	bar.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		if isDragInput(input) then
 			activeSlider = slider
 			update(input.Position.X)
 		end
@@ -321,7 +333,7 @@ local function createSlider(parent, text, min, max, value)
 	return slider
 end
 
---========== PESTAÑA AIM ==========
+-- AIM
 makeSection(aimPage, "AIMBOT")
 local aimButton = makeButton(aimPage, "🎯  Aimbot  •  OFF")
 local aimHoldButton = makeButton(aimPage, "🔘  Modo  •  TOGGLE")
@@ -347,7 +359,7 @@ fovStroke.Thickness = 1.2
 fovStroke.Transparency = 0.35
 fovStroke.Parent = fovCircle
 
---========== PESTAÑA ESP ==========
+-- ESP
 makeSection(espPage, "ESP SETTINGS")
 local espButton = makeButton(espPage, "👁  ESP  •  OFF")
 local espNamesButton = makeButton(espPage, "🏷  Nombres  •  ON")
@@ -357,7 +369,7 @@ local espBoxesButton = makeButton(espPage, "⬜  Boxes  •  ON")
 local espDistSlider = createSlider(espPage, "Distancia ESP  ", 100, 2000, espMaxDistance)
 espDistSlider.onChanged = function(v) espMaxDistance = v end
 
---========== PESTAÑA HITBOX ==========
+-- HITBOX
 makeSection(hitboxPage, "HITBOX EXPANDER")
 local hitboxButton = makeButton(hitboxPage, "📦  Hitbox  •  OFF")
 local hitboxSizeSlider = createSlider(hitboxPage, "Tamaño  ", 2, 25, hitboxSize)
@@ -365,7 +377,7 @@ hitboxSizeSlider.onChanged = function(v) hitboxSize = v end
 local hitboxTransSlider = createSlider(hitboxPage, "Transparencia  ", 0, 100, 65)
 hitboxTransSlider.onChanged = function(v) hitboxTransparency = v / 100 end
 
---========== PESTAÑA MENU ==========
+-- MENU
 makeSection(menuPage, "MENU")
 local keyButton = makeButton(menuPage, "⌨  Tecla del menú  •  " .. MenuKey.Name)
 local closeForever = makeButton(menuPage, "🔒  Cerrar para siempre")
@@ -377,6 +389,7 @@ floatingButton.BackgroundColor3 = Theme.Accent
 floatingButton.Text = "😈"
 floatingButton.TextSize = 18
 floatingButton.Visible = false
+floatingButton.Active = true
 floatingButton.Parent = gui
 corner(floatingButton, 23)
 
@@ -387,7 +400,40 @@ local function setMenuVisible(state, showBall)
 end
 
 closeButton.MouseButton1Click:Connect(function() setMenuVisible(false, true) end)
-floatingButton.MouseButton1Click:Connect(function() setMenuVisible(true, false) end)
+
+--==================================================
+-- DRAG MENÚ + BOLITA (PC y Móvil)
+--==================================================
+
+header.InputBegan:Connect(function(input)
+	if isDragInput(input) then
+		draggingMenu = true
+		dragStart = input.Position
+		menuStart = menu.Position
+	end
+end)
+
+floatingButton.InputBegan:Connect(function(input)
+	if isDragInput(input) then
+		draggingBall = true
+		ballMoved = false
+		ballDragStart = input.Position
+		ballStart = floatingButton.Position
+	end
+end)
+
+local function openFromBall()
+	if ballMoved then
+		ballMoved = false
+		return
+	end
+	setMenuVisible(true, false)
+end
+
+floatingButton.MouseButton1Click:Connect(openFromBall)
+pcall(function()
+	floatingButton.TouchTap:Connect(openFromBall)
+end)
 
 --==================================================
 -- LOGIC
@@ -619,7 +665,6 @@ task.spawn(function()
 	end
 end)
 
--- Botones AIM
 aimButton.MouseButton1Click:Connect(function()
 	aimEnabled = not aimEnabled
 	aimButton.Text = aimEnabled and "🎯  Aimbot  •  ON" or "🎯  Aimbot  •  OFF"
@@ -644,7 +689,6 @@ targetButton.MouseButton1Click:Connect(function()
 	targetButton.Text = "🎯  Objetivo  •  " .. aimTargetPart
 end)
 
--- Botones ESP
 espButton.MouseButton1Click:Connect(function()
 	espEnabled = not espEnabled
 	espButton.Text = espEnabled and "👁  ESP  •  ON" or "👁  ESP  •  OFF"
@@ -668,18 +712,17 @@ espBoxesButton.MouseButton1Click:Connect(function()
 	if espEnabled then for plr in pairs(ESP) do createESP(plr) end end
 end)
 
--- Botones HITBOX
 hitboxButton.MouseButton1Click:Connect(function()
 	hitboxEnabled = not hitboxEnabled
 	hitboxButton.Text = hitboxEnabled and "📦  Hitbox  •  ON" or "📦  Hitbox  •  OFF"
 	updateHitboxes()
 end)
 
--- Botones MENU
 keyButton.MouseButton1Click:Connect(function()
 	waitingMenuKey = true
 	keyButton.Text = "⌨  Presiona una tecla..."
 end)
+
 closeForever.MouseButton1Click:Connect(function()
 	menuClosedForever = true
 	aimEnabled = false
@@ -709,35 +752,34 @@ UserInputService.InputBegan:Connect(function(input, processed)
 	end
 end)
 
+UserInputService.InputChanged:Connect(function(input)
+	if activeSlider and isMoveInput(input) then
+		activeSlider.update(input.Position.X)
+		return
+	end
+	if draggingMenu and isMoveInput(input) then
+		local delta = input.Position - dragStart
+		menu.Position = UDim2.new(menuStart.X.Scale, menuStart.X.Offset + delta.X, menuStart.Y.Scale, menuStart.Y.Offset + delta.Y)
+		return
+	end
+	if draggingBall and isMoveInput(input) then
+		local delta = input.Position - ballDragStart
+		if delta.Magnitude > 8 then ballMoved = true end
+		floatingButton.Position = UDim2.new(ballStart.X.Scale, ballStart.X.Offset + delta.X, ballStart.Y.Scale, ballStart.Y.Offset + delta.Y)
+	end
+end)
+
 UserInputService.InputEnded:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton2 then
 		aimHeld = false
 		currentAimTarget = nil
 	end
-	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+	if isDragInput(input) then
 		draggingMenu = false
+		draggingBall = false
 		activeSlider = nil
 	end
 end)
 
-header.InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 then
-		draggingMenu = true
-		dragStart = input.Position
-		menuStart = menu.Position
-	end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-	if activeSlider and input.UserInputType == Enum.UserInputType.MouseMovement then
-		activeSlider.update(input.Position.X)
-		return
-	end
-	if draggingMenu and input.UserInputType == Enum.UserInputType.MouseMovement then
-		local delta = input.Position - dragStart
-		menu.Position = UDim2.new(menuStart.X.Scale, menuStart.X.Offset + delta.X, menuStart.Y.Scale, menuStart.Y.Offset + delta.Y)
-	end
-end)
-
 showPage(aimPage, aimTab)
-print("😈 CH Tabs cargado | AIM / ESP / HITBOX / MENU")
+print("😈 CH Tabs + Drag móvil cargado")
