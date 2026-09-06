@@ -1,6 +1,8 @@
 --==================================================
 -- 😈 CH PC - Trigger + Macro + ESP
 -- TRIGGER | MACRO | ESP | MENU
+-- Macro: 2 saca → dispara → 2 guarda
+-- + Teclas para activar/desactivar Trigger y Macro
 --==================================================
 
 local Players = game:GetService("Players")
@@ -61,13 +63,6 @@ local Theme = {
 	White = Color3.fromRGB(255, 255, 255)
 }
 
--- 1 = normal rápido (como antes ~0.01)
--- 100 = muy lento (~0.75)
-local function speedToDelay(v)
-	v = math.clamp(v, 1, 100)
-	return 0.01 + ((v - 1) / 99) * 0.74
-end
-
 local function setupChar(char)
 	Character = char
 	Root = char:WaitForChild("HumanoidRootPart", 5)
@@ -127,7 +122,7 @@ local function makeSection(parent, titleText)
 end
 
 local menu = Instance.new("Frame")
-menu.Size = UDim2.fromOffset(360, 500)
+menu.Size = UDim2.fromOffset(360, 480)
 menu.Position = UDim2.fromOffset(30, 50)
 menu.BackgroundColor3 = Theme.Background
 menu.BorderSizePixel = 0
@@ -325,16 +320,16 @@ end
 makeSection(triggerPage, "TRIGGERBOT")
 local triggerbotButton = makeButton(triggerPage, "🔫  Triggerbot  •  OFF")
 local triggerKeyButton = makeButton(triggerPage, "⌨  Tecla Trigger  •  " .. TriggerKey.Name)
-local delaySlider = createSlider(triggerPage, "Velocidad 1=rápido 100=lento  ", 1, 100, 5)
-delaySlider.onChanged = function(v) triggerbotDelay = speedToDelay(v) end
+local delaySlider = createSlider(triggerPage, "Velocidad (1=rápido)  ", 1, 50, 5)
+delaySlider.onChanged = function(v) triggerbotDelay = v / 100 end
 local friendsButton = makeButton(triggerPage, "👥  Ignorar amigos  •  ON")
 local teamButton = makeButton(triggerPage, "🟢  Ignorar equipo  •  ON")
 
 makeSection(macroPage, "TRIGGER CON MACRO")
 local macroButton = makeButton(macroPage, "⚡  Macro Trigger  •  OFF")
 local macroKeyButton = makeButton(macroPage, "⌨  Tecla Macro  •  " .. MacroKey.Name)
-local macroDelaySlider = createSlider(macroPage, "Velocidad 1=rápido 100=lento  ", 1, 100, 8)
-macroDelaySlider.onChanged = function(v) macroDelay = speedToDelay(v) end
+local macroDelaySlider = createSlider(macroPage, "Delay disparo  ", 1, 50, 8)
+macroDelaySlider.onChanged = function(v) macroDelay = v / 100 end
 local infoLabel = Instance.new("TextLabel")
 infoLabel.Size = UDim2.new(1, 0, 0, 50)
 infoLabel.BackgroundTransparency = 1
@@ -584,13 +579,13 @@ task.spawn(function()
 end)
 
 local function setTriggerState(on)
-	triggerbotEnabled = on
-	triggerbotButton.Text = on and "🔫  Triggerbot  •  ON" or "🔫  Triggerbot  •  OFF"
+	triggerbotEnabled = on == true
+	triggerbotButton.Text = triggerbotEnabled and "🔫  Triggerbot  •  ON" or "🔫  Triggerbot  •  OFF"
 end
 
 local function setMacroState(on)
-	macroEnabled = on
-	macroButton.Text = on and "⚡  Macro Trigger  •  ON" or "⚡  Macro Trigger  •  OFF"
+	macroEnabled = on == true
+	macroButton.Text = macroEnabled and "⚡  Macro Trigger  •  ON" or "⚡  Macro Trigger  •  OFF"
 end
 
 triggerbotButton.MouseButton1Click:Connect(function()
@@ -673,7 +668,6 @@ UserInputService.InputBegan:Connect(function(input, processed)
 		end
 		return
 	end
-
 	if waitingMacroKey and input.UserInputType == Enum.UserInputType.Keyboard then
 		if input.KeyCode ~= Enum.KeyCode.Unknown then
 			MacroKey = input.KeyCode
@@ -682,7 +676,6 @@ UserInputService.InputBegan:Connect(function(input, processed)
 		end
 		return
 	end
-
 	if waitingMenuKey and input.UserInputType == Enum.UserInputType.Keyboard then
 		if input.KeyCode ~= Enum.KeyCode.Unknown then
 			MenuKey = input.KeyCode
@@ -691,19 +684,15 @@ UserInputService.InputBegan:Connect(function(input, processed)
 		end
 		return
 	end
-
 	if processed then return end
-
 	if input.KeyCode == TriggerKey then
 		setTriggerState(not triggerbotEnabled)
 		return
 	end
-
 	if input.KeyCode == MacroKey then
 		setMacroState(not macroEnabled)
 		return
 	end
-
 	if input.KeyCode == MenuKey then
 		if menu.Visible then setMenuVisible(false, false) else setMenuVisible(true, false) end
 	end
@@ -734,9 +723,6 @@ UserInputService.InputEnded:Connect(function(input)
 		activeSlider = nil
 	end
 end)
-
-triggerbotDelay = speedToDelay(5)
-macroDelay = speedToDelay(8)
 
 showPage(triggerPage, triggerTab)
 print("😈 CH PC | Tecla Trigger + Tecla Macro")
