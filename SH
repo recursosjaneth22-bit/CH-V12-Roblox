@@ -1,15 +1,12 @@
 --==================================================
--- 😈 CH PC - Trigger + Macro + ESP
--- TRIGGER | MACRO | ESP | MENU
--- Macro: 2 saca → dispara → 2 guarda
--- + Teclas para activar/desactivar Trigger y Macro
+-- 😈 CH PC - Trigger + ESP
+-- TRIGGER | ESP | MENU
 --==================================================
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
-local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
@@ -17,18 +14,10 @@ local Mouse = LocalPlayer:GetMouse()
 
 local MenuKey = Enum.KeyCode.RightControl
 local TriggerKey = Enum.KeyCode.E
-local MacroKey = Enum.KeyCode.Q
 
 local triggerbotEnabled = false
 local triggerbotDelay = 0.05
 local lastTriggerShot = 0
-
-local macroEnabled = false
-local macroDelay = 0.08
-local lastMacroShot = 0
-local lastEquipTime = 0
-local equipCooldown = 0.35
-local gunKey = Enum.KeyCode.Two
 
 local ignoreFriends = true
 local ignoreTeam = true
@@ -45,7 +34,6 @@ local Character, Root
 local menuClosedForever = false
 local waitingMenuKey = false
 local waitingTriggerKey = false
-local waitingMacroKey = false
 local activeSlider = nil
 local draggingMenu = false
 local dragStart, menuStart
@@ -122,7 +110,7 @@ local function makeSection(parent, titleText)
 end
 
 local menu = Instance.new("Frame")
-menu.Size = UDim2.fromOffset(360, 480)
+menu.Size = UDim2.fromOffset(360, 440)
 menu.Position = UDim2.fromOffset(30, 50)
 menu.BackgroundColor3 = Theme.Background
 menu.BorderSizePixel = 0
@@ -153,7 +141,7 @@ local subtitle = Instance.new("TextLabel")
 subtitle.Size = UDim2.new(1, -50, 0, 14)
 subtitle.Position = UDim2.fromOffset(14, 28)
 subtitle.BackgroundTransparency = 1
-subtitle.Text = "TRIGGER | MACRO | ESP | MENU"
+subtitle.Text = "TRIGGER  |  ESP  |  MENU"
 subtitle.TextColor3 = Theme.AccentLight
 subtitle.Font = Enum.Font.GothamBold
 subtitle.TextSize = 9
@@ -206,20 +194,19 @@ local function createPage()
 end
 
 local triggerPage = createPage()
-local macroPage = createPage()
 local espPage = createPage()
 local menuPage = createPage()
 
 local function makeTab(text, order)
 	local b = Instance.new("TextButton")
-	b.Size = UDim2.new(0.25, -4, 1, 0)
+	b.Size = UDim2.new(1/3, -4, 1, 0)
 	b.Position = UDim2.new(order, 0, 0, 0)
 	b.BackgroundColor3 = Theme.Element
 	b.BorderSizePixel = 0
 	b.Text = text
 	b.TextColor3 = Theme.SubText
 	b.Font = Enum.Font.GothamBold
-	b.TextSize = 10
+	b.TextSize = 11
 	b.Parent = tabFrame
 	corner(b, 6)
 	table.insert(tabs, b)
@@ -227,9 +214,8 @@ local function makeTab(text, order)
 end
 
 local triggerTab = makeTab("TRIGGER", 0)
-local macroTab = makeTab("MACRO", 0.25)
-local espTab = makeTab("ESP", 0.5)
-local configTab = makeTab("MENU", 0.75)
+local espTab = makeTab("ESP", 1/3)
+local configTab = makeTab("MENU", 2/3)
 
 local function showPage(page, selected)
 	for _, p in ipairs(pages) do p.Visible = false end
@@ -243,7 +229,6 @@ local function showPage(page, selected)
 end
 
 triggerTab.MouseButton1Click:Connect(function() showPage(triggerPage, triggerTab) end)
-macroTab.MouseButton1Click:Connect(function() showPage(macroPage, macroTab) end)
 espTab.MouseButton1Click:Connect(function() showPage(espPage, espTab) end)
 configTab.MouseButton1Click:Connect(function() showPage(menuPage, configTab) end)
 
@@ -325,22 +310,6 @@ delaySlider.onChanged = function(v) triggerbotDelay = v / 100 end
 local friendsButton = makeButton(triggerPage, "👥  Ignorar amigos  •  ON")
 local teamButton = makeButton(triggerPage, "🟢  Ignorar equipo  •  ON")
 
-makeSection(macroPage, "TRIGGER CON MACRO")
-local macroButton = makeButton(macroPage, "⚡  Macro Trigger  •  OFF")
-local macroKeyButton = makeButton(macroPage, "⌨  Tecla Macro  •  " .. MacroKey.Name)
-local macroDelaySlider = createSlider(macroPage, "Delay disparo  ", 1, 50, 8)
-macroDelaySlider.onChanged = function(v) macroDelay = v / 100 end
-local infoLabel = Instance.new("TextLabel")
-infoLabel.Size = UDim2.new(1, 0, 0, 50)
-infoLabel.BackgroundTransparency = 1
-infoLabel.Text = "1) Mira en el enemigo\n2) Tecla 2 saca el arma\n3) Dispara\n4) Tecla 2 guarda el arma"
-infoLabel.TextColor3 = Theme.SubText
-infoLabel.Font = Enum.Font.Gotham
-infoLabel.TextSize = 11
-infoLabel.TextWrapped = true
-infoLabel.TextXAlignment = Enum.TextXAlignment.Left
-infoLabel.Parent = macroPage
-
 makeSection(espPage, "ESP")
 local espButton = makeButton(espPage, "👁  ESP  •  OFF")
 local espNamesButton = makeButton(espPage, "🏷  Nombres  •  ON")
@@ -406,21 +375,6 @@ local function isEnemyExactlyUnderCrosshair()
 	return true
 end
 
-local function pressKey(keyCode)
-	pcall(function()
-		VirtualInputManager:SendKeyEvent(true, keyCode, false, game)
-		task.wait(0.03)
-		VirtualInputManager:SendKeyEvent(false, keyCode, false, game)
-	end)
-	pcall(function()
-		if keypress and keyrelease then
-			keypress(0x32)
-			task.wait(0.03)
-			keyrelease(0x32)
-		end
-	end)
-end
-
 local function clickMouse()
 	if mouse1press then
 		mouse1press()
@@ -429,20 +383,16 @@ local function clickMouse()
 		return
 	end
 	pcall(function()
-		VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+		local VIM = game:GetService("VirtualInputManager")
+		VIM:SendMouseButtonEvent(0, 0, 0, true, game, 0)
 		task.wait(0.01)
-		VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+		VIM:SendMouseButtonEvent(0, 0, 0, false, game, 0)
 	end)
 	pcall(function()
 		local VirtualUser = game:GetService("VirtualUser")
 		VirtualUser:CaptureController()
 		VirtualUser:ClickButton1(Vector2.new())
 	end)
-end
-
-local function hasGunEquipped()
-	if not Character then return false end
-	return Character:FindFirstChildOfClass("Tool") ~= nil
 end
 
 local function doTriggerbot()
@@ -455,31 +405,7 @@ local function doTriggerbot()
 	end
 end
 
-local function doMacroTrigger()
-	if not macroEnabled then return end
-	if not isEnemyExactlyUnderCrosshair() then return end
-	local now = os.clock()
-	if not hasGunEquipped() then
-		if now - lastEquipTime >= equipCooldown then
-			lastEquipTime = now
-			pressKey(gunKey)
-		end
-		return
-	end
-	if now - lastMacroShot < macroDelay then return end
-	lastMacroShot = now
-	clickMouse()
-	task.delay(0.12, function()
-		if Character and Character:FindFirstChildOfClass("Tool") then
-			pressKey(gunKey)
-		end
-	end)
-end
-
-RunService.RenderStepped:Connect(function()
-	doTriggerbot()
-	doMacroTrigger()
-end)
+RunService.RenderStepped:Connect(doTriggerbot)
 
 local function removeESP(plr)
 	local data = ESP[plr]
@@ -583,18 +509,12 @@ local function setTriggerState(on)
 	triggerbotButton.Text = triggerbotEnabled and "🔫  Triggerbot  •  ON" or "🔫  Triggerbot  •  OFF"
 end
 
-local function setMacroState(on)
-	macroEnabled = on == true
-	macroButton.Text = macroEnabled and "⚡  Macro Trigger  •  ON" or "⚡  Macro Trigger  •  OFF"
-end
-
 triggerbotButton.MouseButton1Click:Connect(function()
 	setTriggerState(not triggerbotEnabled)
 end)
 
 triggerKeyButton.MouseButton1Click:Connect(function()
 	waitingTriggerKey = true
-	waitingMacroKey = false
 	waitingMenuKey = false
 	triggerKeyButton.Text = "⌨  Presiona tecla Trigger..."
 end)
@@ -607,17 +527,6 @@ end)
 teamButton.MouseButton1Click:Connect(function()
 	ignoreTeam = not ignoreTeam
 	teamButton.Text = ignoreTeam and "🟢  Ignorar equipo  •  ON" or "🟢  Ignorar equipo  •  OFF"
-end)
-
-macroButton.MouseButton1Click:Connect(function()
-	setMacroState(not macroEnabled)
-end)
-
-macroKeyButton.MouseButton1Click:Connect(function()
-	waitingMacroKey = true
-	waitingTriggerKey = false
-	waitingMenuKey = false
-	macroKeyButton.Text = "⌨  Presiona tecla Macro..."
 end)
 
 espButton.MouseButton1Click:Connect(function()
@@ -646,14 +555,12 @@ end)
 keyButton.MouseButton1Click:Connect(function()
 	waitingMenuKey = true
 	waitingTriggerKey = false
-	waitingMacroKey = false
 	keyButton.Text = "⌨  Presiona tecla menú..."
 end)
 
 closeForever.MouseButton1Click:Connect(function()
 	menuClosedForever = true
 	triggerbotEnabled = false
-	macroEnabled = false
 	espEnabled = false
 	for plr in pairs(ESP) do removeESP(plr) end
 	gui:Destroy()
@@ -668,14 +575,6 @@ UserInputService.InputBegan:Connect(function(input, processed)
 		end
 		return
 	end
-	if waitingMacroKey and input.UserInputType == Enum.UserInputType.Keyboard then
-		if input.KeyCode ~= Enum.KeyCode.Unknown then
-			MacroKey = input.KeyCode
-			waitingMacroKey = false
-			macroKeyButton.Text = "⌨  Tecla Macro  •  " .. MacroKey.Name
-		end
-		return
-	end
 	if waitingMenuKey and input.UserInputType == Enum.UserInputType.Keyboard then
 		if input.KeyCode ~= Enum.KeyCode.Unknown then
 			MenuKey = input.KeyCode
@@ -687,10 +586,6 @@ UserInputService.InputBegan:Connect(function(input, processed)
 	if processed then return end
 	if input.KeyCode == TriggerKey then
 		setTriggerState(not triggerbotEnabled)
-		return
-	end
-	if input.KeyCode == MacroKey then
-		setMacroState(not macroEnabled)
 		return
 	end
 	if input.KeyCode == MenuKey then
@@ -725,4 +620,4 @@ UserInputService.InputEnded:Connect(function(input)
 end)
 
 showPage(triggerPage, triggerTab)
-print("😈 CH PC | Tecla Trigger + Tecla Macro")
+print("😈 CH PC | TRIGGER + ESP (sin Macro)")
