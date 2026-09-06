@@ -17,6 +17,7 @@ local TriggerKey = Enum.KeyCode.E
 
 local triggerbotEnabled = false
 local triggerbotDelay = 0.05
+local triggerPrecision = 25 -- 1 = lento | 50 = rápido y preciso
 local lastTriggerShot = 0
 
 local ignoreFriends = true
@@ -110,7 +111,7 @@ local function makeSection(parent, titleText)
 end
 
 local menu = Instance.new("Frame")
-menu.Size = UDim2.fromOffset(360, 440)
+menu.Size = UDim2.fromOffset(360, 460)
 menu.Position = UDim2.fromOffset(30, 50)
 menu.BackgroundColor3 = Theme.Background
 menu.BorderSizePixel = 0
@@ -307,6 +308,8 @@ local triggerbotButton = makeButton(triggerPage, "🔫  Triggerbot  •  OFF")
 local triggerKeyButton = makeButton(triggerPage, "⌨  Tecla Trigger  •  " .. TriggerKey.Name)
 local delaySlider = createSlider(triggerPage, "Velocidad (1=rápido)  ", 1, 50, 5)
 delaySlider.onChanged = function(v) triggerbotDelay = v / 100 end
+local precisionSlider = createSlider(triggerPage, "Precisión (1=lenta 50=rápida)  ", 1, 50, 25)
+precisionSlider.onChanged = function(v) triggerPrecision = v end
 local friendsButton = makeButton(triggerPage, "👥  Ignorar amigos  •  ON")
 local teamButton = makeButton(triggerPage, "🟢  Ignorar equipo  •  ON")
 
@@ -375,6 +378,15 @@ local function isEnemyExactlyUnderCrosshair()
 	return true
 end
 
+-- Delay final según Velocidad + Precisión
+-- Precisión alta = respuesta más rápida
+local function getEffectiveDelay()
+	local p = math.clamp(triggerPrecision, 1, 50)
+	-- 50 → factor ~0.15 (muy rápido) | 1 → factor ~1.8 (lento)
+	local factor = 1.85 - ((p - 1) / 49) * 1.70
+	return math.max(0.008, triggerbotDelay * factor)
+end
+
 local function clickMouse()
 	if mouse1press then
 		mouse1press()
@@ -398,7 +410,7 @@ end
 local function doTriggerbot()
 	if not triggerbotEnabled then return end
 	local now = os.clock()
-	if now - lastTriggerShot < triggerbotDelay then return end
+	if now - lastTriggerShot < getEffectiveDelay() then return end
 	if isEnemyExactlyUnderCrosshair() then
 		lastTriggerShot = now
 		clickMouse()
@@ -620,4 +632,4 @@ UserInputService.InputEnded:Connect(function(input)
 end)
 
 showPage(triggerPage, triggerTab)
-print("😈 CH PC | TRIGGER + ESP (sin Macro)")
+print("😈 CH PC | Precisión en Trigger")
