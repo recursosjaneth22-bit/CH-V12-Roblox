@@ -1,7 +1,6 @@
 --==================================================
 -- 😈 CH PC - Trigger + ESP
--- TRIGGER | ESP | MENU
--- X = menú · Q = trigger · mira arreglada · config legít
+-- X = menú · Q = trigger · sin FOV
 --==================================================
 
 local Players = game:GetService("Players")
@@ -68,6 +67,21 @@ gui.IgnoreGuiInset = true
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 pcall(function() gui.Parent = game:GetService("CoreGui") end)
 if not gui.Parent then gui.Parent = PlayerGui end
+
+local toggleSound = Instance.new("Sound")
+toggleSound.Name = "CH_Toggle"
+toggleSound.SoundId = "rbxassetid://6026984224"
+toggleSound.Volume = 3
+toggleSound.Parent = gui
+
+local function playToggleSound(enabled)
+	pcall(function()
+		toggleSound.PlaybackSpeed = enabled and 1.6 or 0.85
+		toggleSound.Volume = 3
+		toggleSound.TimePosition = 0
+		toggleSound:Play()
+	end)
+end
 
 local function corner(obj, r)
 	local c = Instance.new("UICorner")
@@ -240,7 +254,6 @@ local function createSlider(parent, text, min, max, value)
 	holder.Size = UDim2.new(1, 0, 0, 48)
 	holder.BackgroundTransparency = 1
 	holder.Parent = parent
-
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.new(1, 0, 0, 16)
 	label.BackgroundTransparency = 1
@@ -250,7 +263,6 @@ local function createSlider(parent, text, min, max, value)
 	label.TextSize = 11
 	label.TextXAlignment = Enum.TextXAlignment.Left
 	label.Parent = holder
-
 	local bar = Instance.new("TextButton")
 	bar.Size = UDim2.new(1, -2, 0, 6)
 	bar.Position = UDim2.fromOffset(1, 26)
@@ -260,14 +272,12 @@ local function createSlider(parent, text, min, max, value)
 	bar.AutoButtonColor = false
 	bar.Parent = holder
 	corner(bar, 4)
-
 	local fill = Instance.new("Frame")
 	fill.BackgroundColor3 = Theme.Accent
 	fill.BorderSizePixel = 0
 	fill.Size = UDim2.new(0, 0, 1, 0)
 	fill.Parent = bar
 	corner(fill, 4)
-
 	local knob = Instance.new("Frame")
 	knob.Size = UDim2.fromOffset(12, 12)
 	knob.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -275,9 +285,7 @@ local function createSlider(parent, text, min, max, value)
 	knob.BorderSizePixel = 0
 	knob.Parent = bar
 	corner(knob, 6)
-
 	local slider = {bar = bar, fill = fill, knob = knob, label = label, min = min, max = max, value = value}
-
 	local function update(x)
 		local width = bar.AbsoluteSize.X
 		if width <= 0 then return end
@@ -289,14 +297,12 @@ local function createSlider(parent, text, min, max, value)
 		knob.Position = UDim2.new(percent, 0, 0.5, 0)
 		if slider.onChanged then slider.onChanged(newValue) end
 	end
-
 	bar.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
 			activeSlider = slider
 			update(input.Position.X)
 		end
 	end)
-
 	slider.update = update
 	task.defer(function()
 		local percent = math.clamp((value - min) / (max - min), 0, 1)
@@ -383,7 +389,6 @@ local function shouldTarget(plr)
 	return true
 end
 
--- Mira: raycast centro + Mouse.Target (cualquier parte del enemigo)
 local function isEnemyExactlyUnderCrosshair()
 	local function checkHit(hit)
 		if not hit then return false end
@@ -396,7 +401,6 @@ local function isEnemyExactlyUnderCrosshair()
 		if not hit:IsDescendantOf(character) then return false end
 		return true
 	end
-
 	local cam = workspace.CurrentCamera
 	if cam then
 		local vp = cam.ViewportSize
@@ -408,15 +412,9 @@ local function isEnemyExactlyUnderCrosshair()
 		params.FilterDescendantsInstances = filter
 		params.IgnoreWater = true
 		local result = workspace:Raycast(ray.Origin, ray.Direction * 2000, params)
-		if result and checkHit(result.Instance) then
-			return true
-		end
+		if result and checkHit(result.Instance) then return true end
 	end
-
-	if checkHit(Mouse.Target) then
-		return true
-	end
-
+	if checkHit(Mouse.Target) then return true end
 	return false
 end
 
@@ -558,6 +556,7 @@ end)
 local function setTriggerState(on)
 	triggerbotEnabled = on == true
 	triggerbotButton.Text = triggerbotEnabled and "🔫  Triggerbot  •  ON" or "🔫  Triggerbot  •  OFF"
+	playToggleSound(triggerbotEnabled)
 end
 
 triggerbotButton.MouseButton1Click:Connect(function()
@@ -636,12 +635,10 @@ UserInputService.InputBegan:Connect(function(input, processed)
 		return
 	end
 	if processed then return end
-
 	if input.KeyCode == TriggerKey then
 		setTriggerState(not triggerbotEnabled)
 		return
 	end
-
 	if input.KeyCode == MenuKey then
 		if streamerMode then
 			setStreamerMode(false)
@@ -682,4 +679,4 @@ triggerbotDelay = 12 / 100
 triggerPrecision = 22
 
 showPage(triggerPage, triggerTab)
-print("😈 CH PC | X=menú Q=trigger | mira arreglada")
+print("😈 CH PC | Sin FOV")
