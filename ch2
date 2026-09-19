@@ -7,6 +7,138 @@ local c930b1204c2012b2990ed00d1fd016dfd371e8b884a44131a00f3c95283f9a66 = "https:
 
 local f199147bcb15044501a86dc4948882b58aa1fef3c290af2239ed896b7f2756b9 = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
+
+--==================================================
+-- 🔑 CH KEY SYSTEM
+-- Key: CH999
+--==================================================
+local CH_KEY = "CH999"
+local CH_KEY_UNLOCKED = false
+
+local function CH_GetUIParent()
+    local ok, hui = pcall(function()
+        return (gethui and gethui()) or game:GetService("CoreGui")
+    end)
+    if ok and hui then
+        return hui
+    end
+    return game:GetService("CoreGui")
+end
+
+local CH_KeyGui = Instance.new("ScreenGui")
+CH_KeyGui.Name = "CH_KeySystem"
+CH_KeyGui.ResetOnSpawn = false
+CH_KeyGui.IgnoreGuiInset = true
+CH_KeyGui.Parent = CH_GetUIParent()
+
+local CH_Main = Instance.new("Frame")
+CH_Main.Size = UDim2.fromOffset(360, 230)
+CH_Main.Position = UDim2.new(0.5, -180, 0.5, -115)
+CH_Main.BackgroundColor3 = Color3.fromRGB(15, 15, 18)
+CH_Main.BorderSizePixel = 0
+CH_Main.Parent = CH_KeyGui
+
+local CH_Corner = Instance.new("UICorner")
+CH_Corner.CornerRadius = UDim.new(0, 12)
+CH_Corner.Parent = CH_Main
+
+local CH_Stroke = Instance.new("UIStroke")
+CH_Stroke.Color = Color3.fromRGB(255, 0, 70)
+CH_Stroke.Thickness = 1.5
+CH_Stroke.Parent = CH_Main
+
+local CH_Title = Instance.new("TextLabel")
+CH_Title.Size = UDim2.new(1, -30, 0, 42)
+CH_Title.Position = UDim2.fromOffset(15, 15)
+CH_Title.BackgroundTransparency = 1
+CH_Title.Text = "😈 CH KEY SYSTEM"
+CH_Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+CH_Title.TextSize = 22
+CH_Title.Font = Enum.Font.GothamBold
+CH_Title.Parent = CH_Main
+
+local CH_Subtitle = Instance.new("TextLabel")
+CH_Subtitle.Size = UDim2.new(1, -30, 0, 25)
+CH_Subtitle.Position = UDim2.fromOffset(15, 55)
+CH_Subtitle.BackgroundTransparency = 1
+CH_Subtitle.Text = "Introduce la key para desbloquear el menú"
+CH_Subtitle.TextColor3 = Color3.fromRGB(170, 170, 175)
+CH_Subtitle.TextSize = 13
+CH_Subtitle.Font = Enum.Font.Gotham
+CH_Subtitle.Parent = CH_Main
+
+local CH_Input = Instance.new("TextBox")
+CH_Input.Size = UDim2.new(1, -40, 0, 42)
+CH_Input.Position = UDim2.fromOffset(20, 92)
+CH_Input.BackgroundColor3 = Color3.fromRGB(28, 28, 33)
+CH_Input.BorderSizePixel = 0
+CH_Input.PlaceholderText = "Escribe tu key..."
+CH_Input.PlaceholderColor3 = Color3.fromRGB(120, 120, 125)
+CH_Input.Text = ""
+CH_Input.TextColor3 = Color3.fromRGB(255, 255, 255)
+CH_Input.TextSize = 15
+CH_Input.Font = Enum.Font.Gotham
+CH_Input.ClearTextOnFocus = false
+CH_Input.Parent = CH_Main
+
+local CH_InputCorner = Instance.new("UICorner")
+CH_InputCorner.CornerRadius = UDim.new(0, 8)
+CH_InputCorner.Parent = CH_Input
+
+local CH_Button = Instance.new("TextButton")
+CH_Button.Size = UDim2.new(1, -40, 0, 42)
+CH_Button.Position = UDim2.fromOffset(20, 145)
+CH_Button.BackgroundColor3 = Color3.fromRGB(220, 0, 55)
+CH_Button.BorderSizePixel = 0
+CH_Button.Text = "DESBLOQUEAR"
+CH_Button.TextColor3 = Color3.fromRGB(255, 255, 255)
+CH_Button.TextSize = 14
+CH_Button.Font = Enum.Font.GothamBold
+CH_Button.Parent = CH_Main
+
+local CH_ButtonCorner = Instance.new("UICorner")
+CH_ButtonCorner.CornerRadius = UDim.new(0, 8)
+CH_ButtonCorner.Parent = CH_Button
+
+local CH_Status = Instance.new("TextLabel")
+CH_Status.Size = UDim2.new(1, -40, 0, 25)
+CH_Status.Position = UDim2.fromOffset(20, 188)
+CH_Status.BackgroundTransparency = 1
+CH_Status.Text = ""
+CH_Status.TextColor3 = Color3.fromRGB(255, 80, 100)
+CH_Status.TextSize = 12
+CH_Status.Font = Enum.Font.Gotham
+CH_Status.Parent = CH_Main
+
+local function CH_TryKey()
+    if CH_Input.Text == CH_KEY then
+        CH_KEY_UNLOCKED = true
+        CH_Status.Text = "✓ Key correcta"
+        CH_Status.TextColor3 = Color3.fromRGB(80, 255, 140)
+        task.wait(0.25)
+        CH_KeyGui:Destroy()
+    else
+        CH_Status.Text = "✗ Key incorrecta"
+        CH_Status.TextColor3 = Color3.fromRGB(255, 80, 100)
+        CH_Input.Text = ""
+    end
+end
+
+CH_Button.MouseButton1Click:Connect(CH_TryKey)
+CH_Input.FocusLost:Connect(function(enterPressed)
+    if enterPressed then
+        CH_TryKey()
+    end
+end)
+
+while not CH_KEY_UNLOCKED do
+    task.wait()
+end
+
+--==================================================
+-- 🔓 KEY CORRECTA: continúa el script
+--==================================================
+
 local d552122aa2583c01a713d35f5faba0829e56f6191e6e483462b200360d79415d = "__BE7300BD3F7B0C98901BF365"
 local f47b2acb7490d6f24cec96e663b90840ac1d0c400f77b0605c827c2edb248158 = false
 pcall(function()
