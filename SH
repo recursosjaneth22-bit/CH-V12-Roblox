@@ -1,6 +1,7 @@
 --==================================================
--- 😈 CH PC - TRIGGER + ESP + GRÁFICOS ULTRA
--- X = menú · Q = trigger
+-- 😈 CH PC - MODERN UI V2
+-- TRIGGER + ESP + GRÁFICOS ULTRA
+-- X = MENÚ · Q = TRIGGER
 --==================================================
 
 local Players = game:GetService("Players")
@@ -13,12 +14,12 @@ local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local Mouse = LocalPlayer:GetMouse()
 
+--==================================================
+-- CONFIG
+--==================================================
+
 local MenuKey = Enum.KeyCode.X
 local TriggerKey = Enum.KeyCode.Q
-
---==================================================
--- ESTADOS
---==================================================
 
 local triggerbotEnabled = false
 local triggerbotDelay = 0.12
@@ -34,7 +35,6 @@ local espHealth = true
 local espDistance = true
 local espBoxes = true
 local espMaxDistance = 1000
-local ESP = {}
 
 local Character
 local Root
@@ -46,7 +46,6 @@ local waitingMenuKey = false
 local waitingTriggerKey = false
 
 local activeSlider = nil
-
 local draggingMenu = false
 local dragStart
 local menuStart
@@ -54,88 +53,106 @@ local menuStart
 local lowGraphicsEnabled = false
 local savedGraphics = {}
 
---==================================================
--- THEME
---==================================================
-
-local Theme = {
-    Background = Color3.fromRGB(12, 12, 16),
-    Panel = Color3.fromRGB(18, 18, 24),
-    Element = Color3.fromRGB(28, 28, 36),
-    ElementHover = Color3.fromRGB(38, 38, 48),
-    Text = Color3.fromRGB(245, 245, 250),
-    SubText = Color3.fromRGB(150, 150, 165),
-    Accent = Color3.fromRGB(200, 45, 75),
-    AccentLight = Color3.fromRGB(255, 75, 110),
-    Track = Color3.fromRGB(45, 45, 55),
-    White = Color3.fromRGB(255, 255, 255)
-}
+local ESP = {}
 
 --==================================================
 -- CHARACTER
 --==================================================
 
-local function setupChar(char)
+local function setupCharacter(char)
     Character = char
     Root = char:WaitForChild("HumanoidRootPart", 5)
 end
 
 if LocalPlayer.Character then
-    task.spawn(setupChar, LocalPlayer.Character)
+    task.spawn(setupCharacter, LocalPlayer.Character)
 end
+
+LocalPlayer.CharacterAdded:Connect(setupCharacter)
+
+--==================================================
+-- THEME
+--==================================================
+
+local Theme = {
+    Background = Color3.fromRGB(9, 10, 13),
+    Sidebar = Color3.fromRGB(13, 14, 18),
+    Panel = Color3.fromRGB(17, 18, 23),
+    Card = Color3.fromRGB(21, 22, 28),
+    Element = Color3.fromRGB(28, 29, 36),
+    Hover = Color3.fromRGB(36, 37, 46),
+
+    Text = Color3.fromRGB(245, 245, 248),
+    SubText = Color3.fromRGB(145, 148, 158),
+    Muted = Color3.fromRGB(90, 93, 103),
+
+    Accent = Color3.fromRGB(205, 45, 75),
+    AccentLight = Color3.fromRGB(255, 78, 108),
+
+    Green = Color3.fromRGB(65, 210, 125),
+    Track = Color3.fromRGB(43, 44, 52),
+    White = Color3.fromRGB(255, 255, 255)
+}
 
 --==================================================
 -- GUI
 --==================================================
 
+local oldGui = PlayerGui:FindFirstChild("CH_PC_MODERN")
+
+if oldGui then
+    oldGui:Destroy()
+end
+
 local gui = Instance.new("ScreenGui")
-gui.Name = "CH_PC"
+gui.Name = "CH_PC_MODERN"
 gui.ResetOnSpawn = false
 gui.IgnoreGuiInset = true
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
-pcall(function()
-    gui.Parent = game:GetService("CoreGui")
-end)
-
-if not gui.Parent then
-    gui.Parent = PlayerGui
-end
+gui.Parent = PlayerGui
 
 --==================================================
 -- SOUND
 --==================================================
 
 local toggleSound = Instance.new("Sound")
-toggleSound.Name = "CH_Toggle"
 toggleSound.SoundId = "rbxassetid://6026984224"
-toggleSound.Volume = 3
+toggleSound.Volume = 2
 toggleSound.Parent = gui
 
-local function playToggleSound(enabled)
+local function playToggleSound(on)
     pcall(function()
-        toggleSound.PlaybackSpeed = enabled and 1.6 or 0.85
-        toggleSound.Volume = 3
+        toggleSound.PlaybackSpeed = on and 1.5 or 0.85
         toggleSound.TimePosition = 0
         toggleSound:Play()
     end)
 end
 
 --==================================================
--- UI HELPERS
+-- HELPERS
 --==================================================
 
-local function corner(obj, r)
+local function addCorner(obj, radius)
     local c = Instance.new("UICorner")
-    c.CornerRadius = UDim.new(0, r)
+    c.CornerRadius = UDim.new(0, radius)
     c.Parent = obj
+    return c
 end
 
-local function tween(obj, t, props)
+local function addStroke(obj, transparency)
+    local s = Instance.new("UIStroke")
+    s.Color = Color3.fromRGB(55, 56, 65)
+    s.Transparency = transparency or 0.5
+    s.Thickness = 1
+    s.Parent = obj
+    return s
+end
+
+local function animate(obj, time, props)
     TweenService:Create(
         obj,
         TweenInfo.new(
-            t,
+            time,
             Enum.EasingStyle.Quart,
             Enum.EasingDirection.Out
         ),
@@ -143,171 +160,258 @@ local function tween(obj, t, props)
     ):Play()
 end
 
-local function makeButton(parent, text)
-    local b = Instance.new("TextButton")
-
-    b.Size = UDim2.new(1, 0, 0, 34)
-    b.BackgroundColor3 = Theme.Element
-    b.BorderSizePixel = 0
-    b.Text = text
-    b.TextColor3 = Theme.Text
-    b.Font = Enum.Font.GothamMedium
-    b.TextSize = 12
-    b.AutoButtonColor = false
-    b.Parent = parent
-
-    corner(b, 8)
-
-    b.MouseEnter:Connect(function()
-        tween(b, 0.12, {
-            BackgroundColor3 = Theme.ElementHover
-        })
-    end)
-
-    b.MouseLeave:Connect(function()
-        tween(b, 0.12, {
-            BackgroundColor3 = Theme.Element
-        })
-    end)
-
-    return b
-end
-
-local function makeSection(parent, titleText)
-    local holder = Instance.new("Frame")
-
-    holder.Size = UDim2.new(1, 0, 0, 20)
-    holder.BackgroundTransparency = 1
-    holder.Parent = parent
-
-    local label = Instance.new("TextLabel")
-
-    label.Size = UDim2.new(1, 0, 1, 0)
-    label.BackgroundTransparency = 1
-    label.Text = string.upper(titleText)
-    label.TextColor3 = Theme.SubText
-    label.Font = Enum.Font.GothamBold
-    label.TextSize = 10
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Parent = holder
-end
-
 --==================================================
--- MENU
+-- MENU PRINCIPAL
 --==================================================
 
 local menu = Instance.new("Frame")
-
-menu.Size = UDim2.fromOffset(360, 480)
-menu.Position = UDim2.fromOffset(30, 50)
+menu.Name = "Menu"
+menu.Size = UDim2.fromOffset(680, 450)
+menu.Position = UDim2.new(0.5, -340, 0.5, -225)
 menu.BackgroundColor3 = Theme.Background
 menu.BorderSizePixel = 0
-menu.Visible = true
 menu.Active = true
 menu.Parent = gui
 
-corner(menu, 14)
+addCorner(menu, 16)
+addStroke(menu, 0.35)
+
+--==================================================
+-- SIDEBAR
+--==================================================
+
+local sidebar = Instance.new("Frame")
+sidebar.Size = UDim2.new(0, 175, 1, 0)
+sidebar.BackgroundColor3 = Theme.Sidebar
+sidebar.BorderSizePixel = 0
+sidebar.Parent = menu
+
+addCorner(sidebar, 16)
+
+--==================================================
+-- LOGO
+--==================================================
+
+local logo = Instance.new("Frame")
+logo.Size = UDim2.new(1, -24, 0, 68)
+logo.Position = UDim2.fromOffset(12, 12)
+logo.BackgroundColor3 = Theme.Panel
+logo.BorderSizePixel = 0
+logo.Parent = sidebar
+
+addCorner(logo, 12)
+
+local logoIcon = Instance.new("TextLabel")
+logoIcon.Size = UDim2.fromOffset(42, 42)
+logoIcon.Position = UDim2.fromOffset(11, 13)
+logoIcon.BackgroundColor3 = Theme.Accent
+logoIcon.Text = "😈"
+logoIcon.TextSize = 18
+logoIcon.Parent = logo
+
+addCorner(logoIcon, 10)
+
+local logoName = Instance.new("TextLabel")
+logoName.Size = UDim2.new(1, -62, 0, 22)
+logoName.Position = UDim2.fromOffset(60, 12)
+logoName.BackgroundTransparency = 1
+logoName.Text = "CH PC"
+logoName.TextColor3 = Theme.Text
+logoName.Font = Enum.Font.GothamBold
+logoName.TextSize = 15
+logoName.TextXAlignment = Enum.TextXAlignment.Left
+logoName.Parent = logo
+
+local logoSub = Instance.new("TextLabel")
+logoSub.Size = UDim2.new(1, -62, 0, 16)
+logoSub.Position = UDim2.fromOffset(60, 35)
+logoSub.BackgroundTransparency = 1
+logoSub.Text = "CONTROL PANEL"
+logoSub.TextColor3 = Theme.AccentLight
+logoSub.Font = Enum.Font.GothamBold
+logoSub.TextSize = 8
+logoSub.TextXAlignment = Enum.TextXAlignment.Left
+logoSub.Parent = logo
+
+--==================================================
+-- NAVIGATION
+--==================================================
+
+local navTitle = Instance.new("TextLabel")
+navTitle.Size = UDim2.new(1, -28, 0, 18)
+navTitle.Position = UDim2.fromOffset(14, 91)
+navTitle.BackgroundTransparency = 1
+navTitle.Text = "NAVEGACIÓN"
+navTitle.TextColor3 = Theme.Muted
+navTitle.Font = Enum.Font.GothamBold
+navTitle.TextSize = 8
+navTitle.TextXAlignment = Enum.TextXAlignment.Left
+navTitle.Parent = sidebar
+
+local navButtons = {}
+
+local function createNav(name, icon, y)
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(1, -24, 0, 42)
+    button.Position = UDim2.fromOffset(12, y)
+    button.BackgroundColor3 = Theme.Sidebar
+    button.BorderSizePixel = 0
+    button.Text = ""
+    button.AutoButtonColor = false
+    button.Parent = sidebar
+
+    addCorner(button, 9)
+
+    local indicator = Instance.new("Frame")
+    indicator.Size = UDim2.fromOffset(3, 20)
+    indicator.Position = UDim2.fromOffset(0, 11)
+    indicator.BackgroundColor3 = Theme.Accent
+    indicator.BorderSizePixel = 0
+    indicator.Visible = false
+    indicator.Parent = button
+
+    addCorner(indicator, 2)
+
+    local iconLabel = Instance.new("TextLabel")
+    iconLabel.Size = UDim2.fromOffset(30, 42)
+    iconLabel.Position = UDim2.fromOffset(9, 0)
+    iconLabel.BackgroundTransparency = 1
+    iconLabel.Text = icon
+    iconLabel.TextSize = 15
+    iconLabel.Parent = button
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -48, 1, 0)
+    label.Position = UDim2.fromOffset(45, 0)
+    label.BackgroundTransparency = 1
+    label.Text = name
+    label.TextColor3 = Theme.SubText
+    label.Font = Enum.Font.GothamMedium
+    label.TextSize = 11
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = button
+
+    navButtons[name] = {
+        Button = button,
+        Indicator = indicator,
+        Label = label
+    }
+
+    return button
+end
+
+local triggerNav = createNav("Trigger", "🔫", 116)
+local espNav = createNav("ESP", "👁", 164)
+local menuNav = createNav("Menú", "⚙", 212)
+local graphicsNav = createNav("Gráficos", "⚡", 260)
+
+local footer = Instance.new("TextLabel")
+footer.Size = UDim2.new(1, -24, 0, 18)
+footer.Position = UDim2.new(0, 12, 1, -30)
+footer.BackgroundTransparency = 1
+footer.Text = "CH PC  •  MODERN"
+footer.TextColor3 = Theme.Muted
+footer.Font = Enum.Font.GothamBold
+footer.TextSize = 8
+footer.TextXAlignment = Enum.TextXAlignment.Left
+footer.Parent = sidebar
+
+--==================================================
+-- CONTENT
+--==================================================
+
+local content = Instance.new("Frame")
+content.Size = UDim2.new(1, -175, 1, 0)
+content.Position = UDim2.fromOffset(175, 0)
+content.BackgroundColor3 = Theme.Background
+content.BorderSizePixel = 0
+content.Parent = menu
 
 --==================================================
 -- HEADER
 --==================================================
 
 local header = Instance.new("Frame")
+header.Size = UDim2.new(1, -28, 0, 60)
+header.Position = UDim2.fromOffset(14, 8)
+header.BackgroundTransparency = 1
+header.Parent = content
 
-header.Size = UDim2.new(1, 0, 0, 50)
-header.BackgroundColor3 = Theme.Panel
-header.BorderSizePixel = 0
-header.Parent = menu
+local pageTitle = Instance.new("TextLabel")
+pageTitle.Size = UDim2.new(1, -55, 0, 25)
+pageTitle.Position = UDim2.fromOffset(2, 7)
+pageTitle.BackgroundTransparency = 1
+pageTitle.Text = "Triggerbot"
+pageTitle.TextColor3 = Theme.Text
+pageTitle.Font = Enum.Font.GothamBold
+pageTitle.TextSize = 20
+pageTitle.TextXAlignment = Enum.TextXAlignment.Left
+pageTitle.Parent = header
 
-corner(header, 14)
-
-local title = Instance.new("TextLabel")
-
-title.Size = UDim2.new(1, -50, 0, 22)
-title.Position = UDim2.fromOffset(14, 6)
-title.BackgroundTransparency = 1
-title.Text = "😈  CH PC"
-title.TextColor3 = Theme.Text
-title.Font = Enum.Font.GothamBold
-title.TextSize = 16
-title.TextXAlignment = Enum.TextXAlignment.Left
-title.Parent = header
-
-local subtitle = Instance.new("TextLabel")
-
-subtitle.Size = UDim2.new(1, -50, 0, 14)
-subtitle.Position = UDim2.fromOffset(14, 28)
-subtitle.BackgroundTransparency = 1
-subtitle.Text = "TRIGGER  |  ESP  |  GRÁFICOS"
-subtitle.TextColor3 = Theme.AccentLight
-subtitle.Font = Enum.Font.GothamBold
-subtitle.TextSize = 9
-subtitle.TextXAlignment = Enum.TextXAlignment.Left
-subtitle.Parent = header
+local pageSubtitle = Instance.new("TextLabel")
+pageSubtitle.Size = UDim2.new(1, -55, 0, 18)
+pageSubtitle.Position = UDim2.fromOffset(3, 34)
+pageSubtitle.BackgroundTransparency = 1
+pageSubtitle.Text = "Configuración rápida y precisa"
+pageSubtitle.TextColor3 = Theme.SubText
+pageSubtitle.Font = Enum.Font.Gotham
+pageSubtitle.TextSize = 9
+pageSubtitle.TextXAlignment = Enum.TextXAlignment.Left
+pageSubtitle.Parent = header
 
 local closeButton = Instance.new("TextButton")
-
-closeButton.Size = UDim2.fromOffset(28, 28)
-closeButton.Position = UDim2.new(1, -38, 0, 11)
+closeButton.Size = UDim2.fromOffset(32, 32)
+closeButton.Position = UDim2.new(1, -32, 0, 8)
 closeButton.BackgroundColor3 = Theme.Element
+closeButton.BorderSizePixel = 0
 closeButton.Text = "×"
 closeButton.TextColor3 = Theme.SubText
 closeButton.Font = Enum.Font.GothamBold
-closeButton.TextSize = 16
+closeButton.TextSize = 18
+closeButton.AutoButtonColor = false
 closeButton.Parent = header
 
-corner(closeButton, 7)
+addCorner(closeButton, 9)
 
 --==================================================
--- TABS
+-- PAGE HOLDER
 --==================================================
 
-local tabFrame = Instance.new("Frame")
-
-tabFrame.Size = UDim2.new(1, -20, 0, 32)
-tabFrame.Position = UDim2.fromOffset(10, 56)
-tabFrame.BackgroundTransparency = 1
-tabFrame.Parent = menu
-
-local contentHolder = Instance.new("Frame")
-
-contentHolder.Size = UDim2.new(1, -20, 1, -100)
-contentHolder.Position = UDim2.fromOffset(10, 94)
-contentHolder.BackgroundTransparency = 1
-contentHolder.Parent = menu
+local pageHolder = Instance.new("Frame")
+pageHolder.Size = UDim2.new(1, -28, 1, -78)
+pageHolder.Position = UDim2.fromOffset(14, 72)
+pageHolder.BackgroundTransparency = 1
+pageHolder.Parent = content
 
 local pages = {}
-local tabs = {}
 
 local function createPage()
-    local p = Instance.new("ScrollingFrame")
+    local page = Instance.new("ScrollingFrame")
+    page.Size = UDim2.fromScale(1, 1)
+    page.BackgroundTransparency = 1
+    page.BorderSizePixel = 0
+    page.ScrollBarThickness = 3
+    page.ScrollBarImageColor3 = Theme.Accent
+    page.CanvasSize = UDim2.fromOffset(0, 0)
+    page.Visible = false
+    page.Parent = pageHolder
 
-    p.Size = UDim2.fromScale(1, 1)
-    p.BackgroundTransparency = 1
-    p.BorderSizePixel = 0
-    p.ScrollBarThickness = 3
-    p.ScrollBarImageColor3 = Theme.Accent
-    p.CanvasSize = UDim2.fromOffset(0, 0)
-    p.Visible = false
-    p.Parent = contentHolder
+    local layout = Instance.new("UIListLayout")
+    layout.Padding = UDim.new(0, 9)
+    layout.Parent = page
 
-    local lay = Instance.new("UIListLayout")
-
-    lay.Padding = UDim.new(0, 6)
-    lay.Parent = p
-
-    lay:GetPropertyChangedSignal(
+    layout:GetPropertyChangedSignal(
         "AbsoluteContentSize"
     ):Connect(function()
-        p.CanvasSize = UDim2.fromOffset(
+        page.CanvasSize = UDim2.fromOffset(
             0,
-            lay.AbsoluteContentSize.Y + 12
+            layout.AbsoluteContentSize.Y + 12
         )
     end)
 
-    table.insert(pages, p)
+    table.insert(pages, page)
 
-    return p
+    return page
 end
 
 local triggerPage = createPage()
@@ -315,101 +419,243 @@ local espPage = createPage()
 local menuPage = createPage()
 local graphicsPage = createPage()
 
-local function makeTab(text, order)
-    local b = Instance.new("TextButton")
+--==================================================
+-- UI COMPONENTS
+--==================================================
 
-    b.Size = UDim2.new(
-        1 / 4,
-        -4,
-        1,
-        0
-    )
+local function createCard(parent, height)
+    local card = Instance.new("Frame")
+    card.Size = UDim2.new(1, -4, 0, height)
+    card.BackgroundColor3 = Theme.Card
+    card.BorderSizePixel = 0
+    card.Parent = parent
 
-    b.Position = UDim2.new(
-        order,
-        0,
-        0,
-        0
-    )
+    addCorner(card, 12)
+    addStroke(card, 0.6)
 
-    b.BackgroundColor3 = Theme.Element
-    b.BorderSizePixel = 0
-    b.Text = text
-    b.TextColor3 = Theme.SubText
-    b.Font = Enum.Font.GothamBold
-    b.TextSize = 10
-    b.Parent = tabFrame
-
-    corner(b, 6)
-
-    table.insert(tabs, b)
-
-    return b
+    return card
 end
 
-local tabWidth = 1 / 4
+local function createLabel(parent, text, x, y, w, h, size, color)
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0, w, 0, h)
+    label.Position = UDim2.fromOffset(x, y)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = color or Theme.Text
+    label.Font = Enum.Font.GothamMedium
+    label.TextSize = size or 10
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = parent
 
-local triggerTab =
-    makeTab("TRIGGER", 0)
-
-local espTab =
-    makeTab("ESP", tabWidth)
-
-local configTab =
-    makeTab(
-        "MENU",
-        tabWidth * 2
-    )
-
-local graphicsTab =
-    makeTab(
-        "GRÁFICOS",
-        tabWidth * 3
-    )
-
-local function showPage(page, selected)
-    for _, p in ipairs(pages) do
-        p.Visible = false
-    end
-
-    page.Visible = true
-
-    for _, t in ipairs(tabs) do
-        t.BackgroundColor3 = Theme.Element
-        t.TextColor3 = Theme.SubText
-    end
-
-    selected.BackgroundColor3 = Theme.Accent
-    selected.TextColor3 = Theme.White
+    return label
 end
 
-triggerTab.MouseButton1Click:Connect(function()
-    showPage(
-        triggerPage,
-        triggerTab
-    )
-end)
+local function createSection(parent, text)
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -10, 0, 18)
+    label.BackgroundTransparency = 1
+    label.Text = string.upper(text)
+    label.TextColor3 = Theme.Muted
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 8
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = parent
 
-espTab.MouseButton1Click:Connect(function()
-    showPage(
-        espPage,
-        espTab
-    )
-end)
+    return label
+end
 
-configTab.MouseButton1Click:Connect(function()
-    showPage(
-        menuPage,
-        configTab
-    )
-end)
+--==================================================
+-- TOGGLE
+--==================================================
 
-graphicsTab.MouseButton1Click:Connect(function()
-    showPage(
-        graphicsPage,
-        graphicsTab
+local function createToggle(
+    parent,
+    y,
+    title,
+    description,
+    initial,
+    callback
+)
+
+    local holder = Instance.new("Frame")
+    holder.Size = UDim2.new(1, -20, 0, 46)
+    holder.Position = UDim2.fromOffset(10, y)
+    holder.BackgroundTransparency = 1
+    holder.Parent = parent
+
+    createLabel(
+        holder,
+        title,
+        0,
+        2,
+        250,
+        18,
+        10,
+        Theme.Text
     )
-end)
+
+    createLabel(
+        holder,
+        description,
+        0,
+        22,
+        290,
+        16,
+        8,
+        Theme.SubText
+    )
+
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.fromOffset(48, 24)
+    button.Position = UDim2.new(1, -48, 0, 8)
+    button.BackgroundColor3 =
+        initial and Theme.Accent or Theme.Track
+    button.BorderSizePixel = 0
+    button.Text = ""
+    button.AutoButtonColor = false
+    button.Parent = holder
+
+    addCorner(button, 12)
+
+    local knob = Instance.new("Frame")
+    knob.Size = UDim2.fromOffset(18, 18)
+    knob.Position =
+        initial
+        and UDim2.new(1, -21, 0.5, -9)
+        or UDim2.fromOffset(3, 3)
+    knob.BackgroundColor3 = Theme.White
+    knob.BorderSizePixel = 0
+    knob.Parent = button
+
+    addCorner(knob, 9)
+
+    local state = initial
+
+    local function setState(value, callCallback)
+        state = value == true
+
+        animate(
+            button,
+            0.14,
+            {
+                BackgroundColor3 =
+                    state
+                    and Theme.Accent
+                    or Theme.Track
+            }
+        )
+
+        animate(
+            knob,
+            0.14,
+            {
+                Position =
+                    state
+                    and UDim2.new(
+                        1,
+                        -21,
+                        0.5,
+                        -9
+                    )
+                    or UDim2.fromOffset(
+                        3,
+                        3
+                    )
+            }
+        )
+
+        if callCallback and callback then
+            callback(state)
+        end
+    end
+
+    button.MouseButton1Click:Connect(function()
+        setState(not state, true)
+    end)
+
+    return {
+        Set = function(_, value)
+            setState(value, false)
+        end,
+
+        Get = function()
+            return state
+        end,
+
+        Button = button
+    }
+end
+
+--==================================================
+-- ACTION BUTTON
+--==================================================
+
+local function createAction(
+    parent,
+    y,
+    title,
+    description,
+    callback
+)
+
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(1, -20, 0, 46)
+    button.Position = UDim2.fromOffset(10, y)
+    button.BackgroundColor3 = Theme.Element
+    button.BorderSizePixel = 0
+    button.Text = ""
+    button.AutoButtonColor = false
+    button.Parent = parent
+
+    addCorner(button, 9)
+
+    createLabel(
+        button,
+        title,
+        12,
+        5,
+        300,
+        17,
+        10,
+        Theme.Text
+    )
+
+    createLabel(
+        button,
+        description,
+        12,
+        24,
+        400,
+        15,
+        8,
+        Theme.SubText
+    )
+
+    button.MouseEnter:Connect(function()
+        animate(
+            button,
+            0.12,
+            {
+                BackgroundColor3 = Theme.Hover
+            }
+        )
+    end)
+
+    button.MouseLeave:Connect(function()
+        animate(
+            button,
+            0.12,
+            {
+                BackgroundColor3 = Theme.Element
+            }
+        )
+    end)
+
+    button.MouseButton1Click:Connect(callback)
+
+    return button
+end
 
 --==================================================
 -- SLIDER
@@ -417,156 +663,84 @@ end)
 
 local function createSlider(
     parent,
-    text,
+    y,
+    title,
     min,
     max,
-    value
+    value,
+    callback
 )
 
     local holder = Instance.new("Frame")
-
-    holder.Size =
-        UDim2.new(
-            1,
-            0,
-            0,
-            48
-        )
-
+    holder.Size = UDim2.new(1, -20, 0, 55)
+    holder.Position = UDim2.fromOffset(10, y)
     holder.BackgroundTransparency = 1
     holder.Parent = parent
 
     local label = Instance.new("TextLabel")
-
-    label.Size =
-        UDim2.new(
-            1,
-            0,
-            0,
-            16
-        )
-
+    label.Size = UDim2.new(1, 0, 0, 18)
     label.BackgroundTransparency = 1
-    label.Text =
-        text .. tostring(value)
-
+    label.Text = title .. tostring(value)
     label.TextColor3 = Theme.Text
     label.Font = Enum.Font.GothamMedium
-    label.TextSize = 11
-    label.TextXAlignment =
-        Enum.TextXAlignment.Left
-
+    label.TextSize = 9
+    label.TextXAlignment = Enum.TextXAlignment.Left
     label.Parent = holder
 
     local bar = Instance.new("TextButton")
-
-    bar.Size =
-        UDim2.new(
-            1,
-            -2,
-            0,
-            6
-        )
-
-    bar.Position =
-        UDim2.fromOffset(
-            1,
-            26
-        )
-
+    bar.Size = UDim2.new(1, 0, 0, 6)
+    bar.Position = UDim2.fromOffset(0, 31)
     bar.BackgroundColor3 = Theme.Track
     bar.BorderSizePixel = 0
     bar.Text = ""
     bar.AutoButtonColor = false
     bar.Parent = holder
 
-    corner(bar, 4)
+    addCorner(bar, 4)
 
     local fill = Instance.new("Frame")
-
-    fill.BackgroundColor3 =
-        Theme.Accent
-
+    fill.BackgroundColor3 = Theme.Accent
     fill.BorderSizePixel = 0
-
-    fill.Size =
-        UDim2.new(
-            0,
-            0,
-            1,
-            0
-        )
-
     fill.Parent = bar
 
-    corner(fill, 4)
+    addCorner(fill, 4)
 
     local knob = Instance.new("Frame")
-
-    knob.Size =
-        UDim2.fromOffset(
-            12,
-            12
-        )
-
-    knob.AnchorPoint =
-        Vector2.new(
-            0.5,
-            0.5
-        )
-
-    knob.BackgroundColor3 =
-        Theme.White
-
+    knob.Size = UDim2.fromOffset(12, 12)
+    knob.AnchorPoint = Vector2.new(0.5, 0.5)
+    knob.BackgroundColor3 = Theme.White
     knob.BorderSizePixel = 0
     knob.Parent = bar
 
-    corner(knob, 6)
+    addCorner(knob, 6)
 
     local slider = {
-        bar = bar,
-        fill = fill,
-        knob = knob,
-        label = label,
-        min = min,
-        max = max,
-        value = value
+        value = value,
+        update = nil
     }
 
     local function update(x)
 
-        local width =
-            bar.AbsoluteSize.X
+        local width = bar.AbsoluteSize.X
 
         if width <= 0 then
             return
         end
 
-        local percent =
-            math.clamp(
-                (
-                    x
-                    - bar.AbsolutePosition.X
-                ) / width,
-                0,
-                1
-            )
+        local percent = math.clamp(
+            (x - bar.AbsolutePosition.X) / width,
+            0,
+            1
+        )
 
-        local newValue =
-            math.floor(
-                min
-                + (
-                    max - min
-                ) * percent
-                + 0.5
-            )
+        local newValue = math.floor(
+            min + (max - min) * percent + 0.5
+        )
 
-        slider.value =
-            newValue
+        slider.value = newValue
 
-        slider.label.Text =
-            text
-            .. tostring(newValue)
+        label.Text =
+            title .. tostring(newValue)
 
         fill.Size =
             UDim2.new(
@@ -584,49 +758,38 @@ local function createSlider(
                 0
             )
 
-        if slider.onChanged then
-            slider.onChanged(
-                newValue
-            )
+        if callback then
+            callback(newValue)
         end
     end
 
-    bar.InputBegan:Connect(
-        function(input)
+    slider.update = update
 
-            if input.UserInputType ==
-                Enum.UserInputType.MouseButton1 then
+    bar.InputBegan:Connect(function(input)
 
-                activeSlider =
-                    slider
+        if input.UserInputType ==
+            Enum.UserInputType.MouseButton1 then
 
-                update(
-                    input.Position.X
-                )
-            end
+            activeSlider = slider
+
+            update(
+                input.Position.X
+            )
         end
-    )
-
-    slider.update =
-        update
+    end)
 
     task.defer(function()
 
         local percent =
             math.clamp(
-                (
-                    value - min
-                ) / (
-                    max - min
-                ),
+                (value - min) / (max - min),
                 0,
                 1
             )
 
         update(
             bar.AbsolutePosition.X
-            + bar.AbsoluteSize.X
-            * percent
+            + bar.AbsoluteSize.X * percent
         )
     end)
 
@@ -634,613 +797,641 @@ local function createSlider(
 end
 
 --==================================================
--- TRIGGER UI
+-- TRIGGER PAGE
 --==================================================
 
-makeSection(
-    triggerPage,
-    "TRIGGERBOT"
+local triggerCard =
+    createCard(
+        triggerPage,
+        86
+    )
+
+createLabel(
+    triggerCard,
+    "🔫  TRIGGERBOT",
+    18,
+    12,
+    250,
+    20,
+    12,
+    Theme.Text
 )
 
-local triggerbotButton =
-    makeButton(
-        triggerPage,
-        "🔫  Triggerbot  •  OFF"
+local triggerStatus =
+    createLabel(
+        triggerCard,
+        "Desactivado",
+        18,
+        38,
+        250,
+        17,
+        8,
+        Theme.SubText
     )
 
-local triggerKeyButton =
-    makeButton(
-        triggerPage,
-        "⌨  Tecla Trigger  •  Q"
+local triggerToggle =
+    createToggle(
+        triggerCard,
+        0,
+        "",
+        "",
+        false,
+        function(on)
+
+            triggerbotEnabled = on
+
+            triggerStatus.Text =
+                on
+                and "Activado"
+                or "Desactivado"
+
+            playToggleSound(on)
+
+        end
     )
 
-local delaySlider =
-    createSlider(
-        triggerPage,
-        "Velocidad (1=rápido)  ",
+triggerToggle.Button.Position =
+    UDim2.new(
         1,
-        50,
-        12
+        -58,
+        0,
+        30
     )
 
-delaySlider.onChanged =
+createSection(
+    triggerPage,
+    "CONFIGURACIÓN"
+)
+
+local triggerConfig =
+    createCard(
+        triggerPage,
+        185
+    )
+
+local triggerKeyText =
+    createLabel(
+        triggerConfig,
+        "Tecla Trigger",
+        12,
+        8,
+        180,
+        18,
+        10,
+        Theme.Text
+    )
+
+local triggerKeyValue =
+    Instance.new("TextLabel")
+
+triggerKeyValue.Size =
+    UDim2.fromOffset(
+        70,
+        24
+    )
+
+triggerKeyValue.Position =
+    UDim2.new(
+        1,
+        -82,
+        0,
+        5
+    )
+
+triggerKeyValue.BackgroundColor3 =
+    Theme.Track
+
+triggerKeyValue.Text =
+    "Q"
+
+triggerKeyValue.TextColor3 =
+    Theme.AccentLight
+
+triggerKeyValue.Font =
+    Enum.Font.GothamBold
+
+triggerKeyValue.TextSize = 9
+triggerKeyValue.Parent =
+    triggerConfig
+
+addCorner(
+    triggerKeyValue,
+    6
+)
+
+local triggerKeyAction =
+    Instance.new("TextButton")
+
+triggerKeyAction.Size =
+    UDim2.new(
+        1,
+        -20,
+        0,
+        40
+    )
+
+triggerKeyAction.Position =
+    UDim2.fromOffset(
+        10,
+        0
+    )
+
+triggerKeyAction.BackgroundTransparency = 1
+triggerKeyAction.Text = ""
+triggerKeyAction.Parent =
+    triggerConfig
+
+triggerKeyAction.MouseButton1Click:Connect(
+    function()
+
+        waitingTriggerKey =
+            true
+
+        waitingMenuKey =
+            false
+
+        triggerKeyValue.Text =
+            "..."
+
+    end
+)
+
+createSlider(
+    triggerConfig,
+    50,
+    "Velocidad  ",
+    1,
+    50,
+    12,
     function(v)
+
         triggerbotDelay =
             v / 100
+
     end
-
-local precisionSlider =
-    createSlider(
-        triggerPage,
-        "Precisión (1=lenta 50=rápida)  ",
-        1,
-        50,
-        22
-    )
-
-precisionSlider.onChanged =
-    function(v)
-        triggerPrecision =
-            v
-    end
-
-local friendsButton =
-    makeButton(
-        triggerPage,
-        "👥  Ignorar amigos  •  ON"
-    )
-
-local teamButton =
-    makeButton(
-        triggerPage,
-        "🟢  Ignorar equipo  •  ON"
-    )
-
---==================================================
--- ESP UI
---==================================================
-
-makeSection(
-    espPage,
-    "ESP"
 )
 
-local espButton =
-    makeButton(
-        espPage,
-        "👁  ESP  •  OFF"
+createSlider(
+    triggerConfig,
+    112,
+    "Precisión  ",
+    1,
+    50,
+    22,
+    function(v)
+
+        triggerPrecision =
+            v
+
+    end
+)
+
+local triggerFilter =
+    createCard(
+        triggerPage,
+        130
     )
 
-local espNamesButton =
-    makeButton(
+createSection(
+    triggerFilter,
+    "FILTROS"
+)
+
+createToggle(
+    triggerFilter,
+    24,
+    "👥  Ignorar amigos",
+    "No apunta a tus amigos",
+    true,
+    function(on)
+
+        ignoreFriends =
+            on
+
+    end
+)
+
+createToggle(
+    triggerFilter,
+    70,
+    "🟢  Ignorar equipo",
+    "No apunta a compañeros",
+    true,
+    function(on)
+
+        ignoreTeam =
+            on
+
+    end
+)
+
+--==================================================
+-- ESP PAGE
+--==================================================
+
+local espMain =
+    createCard(
         espPage,
-        "🏷  Nombres  •  ON"
+        86
     )
 
-local espHealthButton =
-    makeButton(
-        espPage,
-        "❤️  Vida  •  ON"
+createLabel(
+    espMain,
+    "👁  ESP",
+    18,
+    12,
+    200,
+    20,
+    12,
+    Theme.Text
+)
+
+local espStatus =
+    createLabel(
+        espMain,
+        "Desactivado",
+        18,
+        38,
+        200,
+        17,
+        8,
+        Theme.SubText
     )
 
-local espDistanceButton =
-    makeButton(
-        espPage,
-        "📏  Distancia  •  ON"
+local espToggle =
+    createToggle(
+        espMain,
+        0,
+        "",
+        "",
+        false,
+        function(on)
+
+            espEnabled =
+                on
+
+            espStatus.Text =
+                on
+                and "Activado"
+                or "Desactivado"
+
+            if not on then
+
+                for plr in pairs(
+                    ESP
+                ) do
+
+                    if ESP[plr] then
+
+                        if ESP[plr].highlight then
+                            ESP[plr].highlight:Destroy()
+                        end
+
+                        if ESP[plr].billboard then
+                            ESP[plr].billboard:Destroy()
+                        end
+
+                        ESP[plr] = nil
+
+                    end
+
+                end
+            end
+
+        end
     )
 
-local espBoxesButton =
-    makeButton(
-        espPage,
-        "⬜  Boxes  •  ON"
+espToggle.Button.Position =
+    UDim2.new(
+        1,
+        -58,
+        0,
+        30
     )
 
-local espDistSlider =
-    createSlider(
+local espOptions =
+    createCard(
         espPage,
-        "Distancia ESP  ",
-        100,
-        2000,
-        1000
+        230
     )
 
-espDistSlider.onChanged =
+createSection(
+    espOptions,
+    "ELEMENTOS"
+)
+
+createToggle(
+    espOptions,
+    24,
+    "🏷  Nombres",
+    "Muestra el nombre",
+    true,
+    function(on)
+        espNames = on
+    end
+)
+
+createToggle(
+    espOptions,
+    70,
+    "❤️  Vida",
+    "Muestra la vida",
+    true,
+    function(on)
+        espHealth = on
+    end
+)
+
+createToggle(
+    espOptions,
+    116,
+    "📏  Distancia",
+    "Muestra la distancia",
+    true,
+    function(on)
+        espDistance = on
+    end
+)
+
+createToggle(
+    espOptions,
+    162,
+    "⬜  Boxes",
+    "Resalta al jugador",
+    true,
+    function(on)
+        espBoxes = on
+    end
+)
+
+local espRange =
+    createCard(
+        espPage,
+        90
+    )
+
+createSection(
+    espRange,
+    "ALCANCE"
+)
+
+createSlider(
+    espRange,
+    25,
+    "Distancia ESP  ",
+    100,
+    2000,
+    1000,
     function(v)
         espMaxDistance = v
     end
-
---==================================================
--- MENU UI
---==================================================
-
-makeSection(
-    menuPage,
-    "MENU"
 )
 
-local keyButton =
-    makeButton(
-        menuPage,
-        "⌨  Tecla menú  •  X"
-    )
-
-local streamerButton =
-    makeButton(
-        menuPage,
-        "📺  Modo Streamer  •  OFF"
-    )
-
-local closeForever =
-    makeButton(
-        menuPage,
-        "🔒  Cerrar para siempre"
-    )
-
 --==================================================
--- GRÁFICOS UI
+-- MENU PAGE
 --==================================================
 
-makeSection(
-    graphicsPage,
-    "GRÁFICOS"
+local menuControls =
+    createCard(
+        menuPage,
+        150
+    )
+
+createSection(
+    menuControls,
+    "CONTROLES"
 )
 
-local graphicsButton =
-    makeButton(
-        graphicsPage,
-        "💀  MALOS GRÁFICOS • OFF"
-    )
-
-local graphicsInfo =
+local menuKeyValue =
     Instance.new("TextLabel")
 
-graphicsInfo.Size =
-    UDim2.new(
-        1,
-        0,
-        0,
-        80
+menuKeyValue.Size =
+    UDim2.fromOffset(
+        70,
+        24
     )
 
-graphicsInfo.BackgroundTransparency = 1
+menuKeyValue.Position =
+    UDim2.new(
+        1,
+        -82,
+        0,
+        30
+    )
 
-graphicsInfo.Text =
-    "MODO ULTRA FEO: elimina texturas, sombras, luces, partículas, efectos, reflejos y materiales detallados para priorizar FPS."
+menuKeyValue.BackgroundColor3 =
+    Theme.Track
 
-graphicsInfo.TextColor3 =
-    Theme.SubText
+menuKeyValue.Text =
+    "X"
 
-graphicsInfo.Font =
-    Enum.Font.Gotham
+menuKeyValue.TextColor3 =
+    Theme.AccentLight
 
-graphicsInfo.TextSize = 10
+menuKeyValue.Font =
+    Enum.Font.GothamBold
 
-graphicsInfo.TextWrapped = true
+menuKeyValue.TextSize = 9
+menuKeyValue.Parent =
+    menuControls
 
-graphicsInfo.TextXAlignment =
-    Enum.TextXAlignment.Left
+addCorner(
+    menuKeyValue,
+    6
+)
 
-graphicsInfo.Parent =
-    graphicsPage
-
---==================================================
--- FLOATING BUTTON
---==================================================
-
-local floatingButton =
+local menuKeyButton =
     Instance.new("TextButton")
 
-floatingButton.Size =
-    UDim2.fromOffset(
-        46,
+menuKeyButton.Size =
+    UDim2.new(
+        1,
+        -20,
+        0,
         46
     )
 
-floatingButton.Position =
+menuKeyButton.Position =
     UDim2.fromOffset(
-        25,
-        280
+        10,
+        20
     )
 
-floatingButton.BackgroundColor3 =
-    Theme.Accent
+menuKeyButton.BackgroundTransparency = 1
+menuKeyButton.Text = ""
+menuKeyButton.Parent =
+    menuControls
 
-floatingButton.Text = "😈"
-
-floatingButton.TextSize = 18
-
-floatingButton.Visible = false
-
-floatingButton.Parent = gui
-
-corner(
-    floatingButton,
-    23
+createLabel(
+    menuKeyButton,
+    "⌨  Tecla del menú",
+    0,
+    0,
+    250,
+    20,
+    10,
+    Theme.Text
 )
 
---==================================================
--- MENU CONTROL
---==================================================
-
-local function setStreamerMode(on)
-
-    streamerMode =
-        on == true
-
-    streamerButton.Text =
-        streamerMode
-        and "📺  Modo Streamer  •  ON"
-        or "📺  Modo Streamer  •  OFF"
-
-    if streamerMode then
-        menu.Visible = false
-        floatingButton.Visible = false
-    end
-end
-
-local function setMenuVisible(
-    state,
-    showBall
+createLabel(
+    menuKeyButton,
+    "Pulsa para cambiarla",
+    0,
+    21,
+    250,
+    15,
+    8,
+    Theme.SubText
 )
 
-    if menuClosedForever then
-        return
-    end
-
-    if streamerMode then
-        menu.Visible = false
-        floatingButton.Visible = false
-        return
-    end
-
-    menu.Visible = state
-
-    floatingButton.Visible =
-        not state
-        and showBall == true
-end
-
-closeButton.MouseButton1Click:Connect(
+menuKeyButton.MouseButton1Click:Connect(
     function()
-        setMenuVisible(
-            false,
+
+        waitingMenuKey =
             true
-        )
-    end
-)
 
-floatingButton.MouseButton1Click:Connect(
-    function()
-        setMenuVisible(
-            true,
+        waitingTriggerKey =
             false
-        )
+
+        menuKeyValue.Text =
+            "..."
+
     end
 )
 
-streamerButton.MouseButton1Click:Connect(
-    function()
-        setStreamerMode(
-            not streamerMode
-        )
+createToggle(
+    menuControls,
+    76,
+    "📺  Modo Streamer",
+    "Oculta el panel",
+    false,
+    function(on)
+
+        streamerMode =
+            on
+
+        if on then
+
+            menu.Visible =
+                false
+
+            floatingButton.Visible =
+                false
+
+        end
+
     end
 )
 
---==================================================
--- TARGET FILTER
---==================================================
-
-local function isFriend(plr)
-
-    if not ignoreFriends
-        or not plr then
-
-        return false
-    end
-
-    local ok, friend =
-        pcall(function()
-
-            return LocalPlayer:IsFriendsWith(
-                plr.UserId
-            )
-
-        end)
-
-    return ok
-        and friend == true
-end
-
-local function isSameTeam(plr)
-
-    if not ignoreTeam then
-        return false
-    end
-
-    if not plr
-        or plr == LocalPlayer then
-
-        return false
-    end
-
-    if LocalPlayer.Team ~= nil
-        and plr.Team ~= nil then
-
-        return LocalPlayer.Team ==
-            plr.Team
-    end
-
-    return false
-end
-
-local function shouldTarget(plr)
-
-    if not plr
-        or plr == LocalPlayer then
-
-        return false
-    end
-
-    if isFriend(plr) then
-        return false
-    end
-
-    if isSameTeam(plr) then
-        return false
-    end
-
-    return true
-end
-
---==================================================
--- 😈 TRIGGER ORIGINAL
---==================================================
-
-local function isEnemyExactlyUnderCrosshair()
-
-    local function checkHit(hit)
-
-        if not hit then
-            return false
-        end
-
-        local character =
-            hit:FindFirstAncestorOfClass(
-                "Model"
-            )
-
-        if not character then
-            return false
-        end
-
-        local humanoid =
-            character:FindFirstChildOfClass(
-                "Humanoid"
-            )
-
-        if not humanoid
-            or humanoid.Health <= 0 then
-
-            return false
-        end
-
-        local player =
-            Players:GetPlayerFromCharacter(
-                character
-            )
-
-        if not shouldTarget(
-            player
-        ) then
-
-            return false
-        end
-
-        return hit:IsDescendantOf(
-            character
-        )
-    end
-
-    local cam =
-        workspace.CurrentCamera
-
-    if cam then
-
-        local viewport =
-            cam.ViewportSize
-
-        local ray =
-            cam:ViewportPointToRay(
-                viewport.X / 2,
-                viewport.Y / 2
-            )
-
-        local params =
-            RaycastParams.new()
-
-        params.FilterType =
-            Enum.RaycastFilterType.Exclude
-
-        local filter = {}
-
-        if Character then
-
-            table.insert(
-                filter,
-                Character
-            )
-
-        end
-
-        params.FilterDescendantsInstances =
-            filter
-
-        params.IgnoreWater = true
-
-        local result =
-            workspace:Raycast(
-                ray.Origin,
-                ray.Direction * 2000,
-                params
-            )
-
-        if result
-            and checkHit(
-                result.Instance
-            ) then
-
-            return true
-        end
-    end
-
-    if checkHit(
-        Mouse.Target
-    ) then
-
-        return true
-    end
-
-    return false
-end
-
---==================================================
--- DELAY
---==================================================
-
-local function getEffectiveDelay()
-
-    local p =
-        math.clamp(
-            triggerPrecision,
-            1,
-            50
-        )
-
-    local factor =
-        1.85
-        - (
-            (p - 1)
-            / 49
-        ) * 1.70
-
-    return math.max(
-        0.03,
-        triggerbotDelay
-        * factor
+local closeCard =
+    createCard(
+        menuPage,
+        85
     )
-end
 
---==================================================
--- CLICK
---==================================================
+createSection(
+    closeCard,
+    "PANEL"
+)
 
-local function clickMouse()
+local closeForever =
+    Instance.new("TextButton")
 
-    if mouse1press then
+closeForever.Size =
+    UDim2.new(
+        1,
+        -20,
+        0,
+        45
+    )
 
-        mouse1press()
+closeForever.Position =
+    UDim2.fromOffset(
+        10,
+        25
+    )
 
-        task.wait(
-            0.012
-        )
+closeForever.BackgroundColor3 =
+    Theme.Element
 
-        if mouse1release then
-            mouse1release()
-        end
+closeForever.BorderSizePixel = 0
 
-        return
-    end
+closeForever.Text =
+    "🔒  Cerrar para siempre"
 
-    pcall(function()
+closeForever.TextColor3 =
+    Theme.Text
 
-        local VIM =
-            game:GetService(
-                "VirtualInputManager"
-            )
+closeForever.Font =
+    Enum.Font.GothamMedium
 
-        VIM:SendMouseButtonEvent(
-            0,
-            0,
-            0,
-            true,
-            game,
-            0
-        )
+closeForever.TextSize = 10
 
-        task.wait(
-            0.012
-        )
+closeForever.AutoButtonColor = false
 
-        VIM:SendMouseButtonEvent(
-            0,
-            0,
-            0,
-            false,
-            game,
-            0
-        )
+closeForever.Parent =
+    closeCard
 
-    end)
-
-    pcall(function()
-
-        local VirtualUser =
-            game:GetService(
-                "VirtualUser"
-            )
-
-        VirtualUser:CaptureController()
-
-        VirtualUser:ClickButton1(
-            Vector2.new()
-        )
-
-    end)
-end
-
-local function doTriggerbot()
-
-    if not triggerbotEnabled then
-        return
-    end
-
-    local now =
-        os.clock()
-
-    if now - lastTriggerShot
-        < getEffectiveDelay() then
-
-        return
-    end
-
-    if isEnemyExactlyUnderCrosshair() then
-
-        lastTriggerShot =
-            now
-
-        clickMouse()
-    end
-end
-
-RunService.RenderStepped:Connect(
-    doTriggerbot
+addCorner(
+    closeForever,
+    9
 )
 
 --==================================================
--- 💀 GRÁFICOS ULTRA FEO
+-- GRAPHICS PAGE
 --==================================================
 
-local function saveGraphics(
-    obj,
-    property
+local graphicsMain =
+    createCard(
+        graphicsPage,
+        105
+    )
+
+createLabel(
+    graphicsMain,
+    "💀  MODO ULTRA FEO",
+    18,
+    12,
+    300,
+    20,
+    12,
+    Theme.Text
 )
+
+createLabel(
+    graphicsMain,
+    "Reduce la calidad visual para priorizar FPS.",
+    18,
+    38,
+    300,
+    17,
+    8,
+    Theme.SubText
+)
+
+local graphicsStatus =
+    createLabel(
+        graphicsMain,
+        "Desactivado",
+        18,
+        60,
+        200,
+        16,
+        8,
+        Theme.SubText
+    )
+
+--==================================================
+-- GRÁFICOS SYSTEM
+--==================================================
+
+local function saveGraphics(obj, property)
 
     if not savedGraphics[obj] then
         savedGraphics[obj] = {}
     end
 
-    if savedGraphics[obj][property]
-        == nil then
+    if savedGraphics[obj][property] == nil then
 
         pcall(function()
 
@@ -1248,6 +1439,7 @@ local function saveGraphics(
                 obj[property]
 
         end)
+
     end
 end
 
@@ -1272,11 +1464,8 @@ end
 
 local function makeObjectUgly(obj)
 
-    --==============================================
-    -- TEXTURAS
-    --==============================================
-
-    if obj:IsA("Decal") then
+    if obj:IsA("Decal")
+        or obj:IsA("Texture") then
 
         setGraphicsProperty(
             obj,
@@ -1287,18 +1476,9 @@ local function makeObjectUgly(obj)
         return
     end
 
-    if obj:IsA("Texture") then
-
-        setGraphicsProperty(
-            obj,
-            "Transparency",
-            1
-        )
-
-        return
-    end
-
-    if obj:IsA("SurfaceAppearance") then
+    if obj:IsA(
+        "SurfaceAppearance"
+    ) then
 
         setGraphicsProperty(
             obj,
@@ -1309,13 +1489,14 @@ local function makeObjectUgly(obj)
         return
     end
 
-    --==============================================
-    -- PARTÍCULAS
-    --==============================================
-
     if obj:IsA(
         "ParticleEmitter"
-    ) then
+    )
+        or obj:IsA("Trail")
+        or obj:IsA("Beam")
+        or obj:IsA("Fire")
+        or obj:IsA("Smoke")
+        or obj:IsA("Sparkles") then
 
         setGraphicsProperty(
             obj,
@@ -1325,69 +1506,6 @@ local function makeObjectUgly(obj)
 
         return
     end
-
-    if obj:IsA("Trail") then
-
-        setGraphicsProperty(
-            obj,
-            "Enabled",
-            false
-        )
-
-        return
-    end
-
-    if obj:IsA("Beam") then
-
-        setGraphicsProperty(
-            obj,
-            "Enabled",
-            false
-        )
-
-        return
-    end
-
-    --==============================================
-    -- EFECTOS
-    --==============================================
-
-    if obj:IsA("Fire") then
-
-        setGraphicsProperty(
-            obj,
-            "Enabled",
-            false
-        )
-
-        return
-    end
-
-    if obj:IsA("Smoke") then
-
-        setGraphicsProperty(
-            obj,
-            "Enabled",
-            false
-        )
-
-        return
-    end
-
-    if obj:IsA("Sparkles") then
-
-        setGraphicsProperty(
-            obj,
-            "Enabled",
-            false
-        )
-
-        return
-    end
-
-    --==============================================
-    -- LUCES
-    --==============================================
 
     if obj:IsA("PointLight")
         or obj:IsA("SpotLight")
@@ -1401,10 +1519,6 @@ local function makeObjectUgly(obj)
 
         return
     end
-
-    --==============================================
-    -- POST PROCESADO
-    --==============================================
 
     if obj:IsA("BloomEffect")
         or obj:IsA("BlurEffect")
@@ -1420,10 +1534,6 @@ local function makeObjectUgly(obj)
 
         return
     end
-
-    --==============================================
-    -- ATMÓSFERA
-    --==============================================
 
     if obj:IsA("Atmosphere") then
 
@@ -1447,10 +1557,6 @@ local function makeObjectUgly(obj)
 
         return
     end
-
-    --==============================================
-    -- PARTES
-    --==============================================
 
     if obj:IsA("BasePart") then
 
@@ -1476,10 +1582,6 @@ local function makeObjectUgly(obj)
     end
 end
 
---==================================================
--- ACTIVAR GRÁFICOS ULTRA
---==================================================
-
 local function enableLowGraphics()
 
     if lowGraphicsEnabled then
@@ -1489,10 +1591,6 @@ local function enableLowGraphics()
     table.clear(
         savedGraphics
     )
-
-    --==============================================
-    -- LIGHTING
-    --==============================================
 
     setGraphicsProperty(
         Lighting,
@@ -1512,48 +1610,32 @@ local function enableLowGraphics()
         0
     )
 
-    --==============================================
-    -- TODO EL WORKSPACE
-    --==============================================
-
     for _, obj in ipairs(
         workspace:GetDescendants()
     ) do
 
-        makeObjectUgly(
-            obj
-        )
+        makeObjectUgly(obj)
 
     end
-
-    --==============================================
-    -- LIGHTING EFFECTS
-    --==============================================
 
     for _, obj in ipairs(
         Lighting:GetDescendants()
     ) do
 
-        makeObjectUgly(
-            obj
-        )
+        makeObjectUgly(obj)
 
     end
 
     lowGraphicsEnabled =
         true
 
-    graphicsButton.Text =
-        "💀  MALOS GRÁFICOS • ON"
+    graphicsStatus.Text =
+        "Activado • rendimiento prioritario"
 
     playToggleSound(
         true
     )
 end
-
---==================================================
--- DESACTIVAR / RESTAURAR
---==================================================
 
 local function disableLowGraphics()
 
@@ -1589,7 +1671,9 @@ local function disableLowGraphics()
                     end
 
                 end)
+
             end
+
         end
     end
 
@@ -1600,37 +1684,123 @@ local function disableLowGraphics()
     lowGraphicsEnabled =
         false
 
-    graphicsButton.Text =
-        "💀  MALOS GRÁFICOS • OFF"
+    graphicsStatus.Text =
+        "Desactivado"
 
     playToggleSound(
         false
     )
 end
 
-local function setLowGraphics(
-    state
+local graphicsToggle =
+    createToggle(
+        graphicsMain,
+        0,
+        "",
+        "",
+        false,
+        function(on)
+
+            if on then
+
+                enableLowGraphics()
+
+            else
+
+                disableLowGraphics()
+
+            end
+
+        end
+    )
+
+graphicsToggle.Button.Position =
+    UDim2.new(
+        1,
+        -58,
+        0,
+        40
+    )
+
+local graphicsInfo =
+    createCard(
+        graphicsPage,
+        175
+    )
+
+createSection(
+    graphicsInfo,
+    "CAMBIOS"
 )
 
-    if state then
-        enableLowGraphics()
-    else
-        disableLowGraphics()
-    end
-end
+createLabel(
+    graphicsInfo,
+    "✓ Sombras desactivadas",
+    18,
+    32,
+    300,
+    17,
+    9,
+    Theme.SubText
+)
 
-graphicsButton.MouseButton1Click:Connect(
-    function()
+createLabel(
+    graphicsInfo,
+    "✓ Texturas ocultas",
+    18,
+    53,
+    300,
+    17,
+    9,
+    Theme.SubText
+)
 
-        setLowGraphics(
-            not lowGraphicsEnabled
-        )
+createLabel(
+    graphicsInfo,
+    "✓ SurfaceAppearance eliminado temporalmente",
+    18,
+    74,
+    400,
+    17,
+    9,
+    Theme.SubText
+)
 
-    end
+createLabel(
+    graphicsInfo,
+    "✓ Partículas, luces y efectos desactivados",
+    18,
+    95,
+    400,
+    17,
+    9,
+    Theme.SubText
+)
+
+createLabel(
+    graphicsInfo,
+    "✓ Materiales simplificados",
+    18,
+    116,
+    300,
+    17,
+    9,
+    Theme.SubText
+)
+
+createLabel(
+    graphicsInfo,
+    "✓ Reflejos eliminados",
+    18,
+    137,
+    300,
+    17,
+    9,
+    Theme.SubText
 )
 
 --==================================================
--- OBJETOS NUEVOS
+-- NUEVOS OBJETOS
 --==================================================
 
 workspace.DescendantAdded:Connect(
@@ -1645,13 +1815,12 @@ workspace.DescendantAdded:Connect(
             if lowGraphicsEnabled
                 and obj.Parent then
 
-                makeObjectUgly(
-                    obj
-                )
+                makeObjectUgly(obj)
 
             end
 
         end)
+
     end
 )
 
@@ -1667,13 +1836,271 @@ Lighting.DescendantAdded:Connect(
             if lowGraphicsEnabled
                 and obj.Parent then
 
-                makeObjectUgly(
-                    obj
-                )
+                makeObjectUgly(obj)
 
             end
 
         end)
+
+    end
+)
+
+--==================================================
+-- TARGET FILTER
+--==================================================
+
+local function isFriend(plr)
+
+    if not ignoreFriends
+        or not plr then
+
+        return false
+    end
+
+    local ok, result =
+        pcall(function()
+
+            return LocalPlayer:IsFriendsWith(
+                plr.UserId
+            )
+
+        end)
+
+    return ok and result == true
+end
+
+local function isSameTeam(plr)
+
+    if not ignoreTeam
+        or not plr
+        or plr == LocalPlayer then
+
+        return false
+    end
+
+    if LocalPlayer.Team
+        and plr.Team then
+
+        return LocalPlayer.Team ==
+            plr.Team
+    end
+
+    return false
+end
+
+local function shouldTarget(plr)
+
+    if not plr
+        or plr == LocalPlayer then
+
+        return false
+    end
+
+    if isFriend(plr) then
+        return false
+    end
+
+    if isSameTeam(plr) then
+        return false
+    end
+
+    return true
+end
+
+--==================================================
+-- TRIGGER
+--==================================================
+
+local function isEnemyUnderCrosshair()
+
+    local function checkHit(hit)
+
+        if not hit then
+            return false
+        end
+
+        local character =
+            hit:FindFirstAncestorOfClass(
+                "Model"
+            )
+
+        if not character then
+            return false
+        end
+
+        local humanoid =
+            character:FindFirstChildOfClass(
+                "Humanoid"
+            )
+
+        if not humanoid
+            or humanoid.Health <= 0 then
+
+            return false
+        end
+
+        local player =
+            Players:GetPlayerFromCharacter(
+                character
+            )
+
+        if not shouldTarget(player) then
+            return false
+        end
+
+        return true
+    end
+
+    local camera =
+        workspace.CurrentCamera
+
+    if camera then
+
+        local viewport =
+            camera.ViewportSize
+
+        local ray =
+            camera:ViewportPointToRay(
+                viewport.X / 2,
+                viewport.Y / 2
+            )
+
+        local params =
+            RaycastParams.new()
+
+        params.FilterType =
+            Enum.RaycastFilterType.Exclude
+
+        if Character then
+
+            params.FilterDescendantsInstances =
+                {Character}
+
+        end
+
+        params.IgnoreWater = true
+
+        local result =
+            workspace:Raycast(
+                ray.Origin,
+                ray.Direction * 2000,
+                params
+            )
+
+        if result
+            and checkHit(
+                result.Instance
+            ) then
+
+            return true
+
+        end
+
+    end
+
+    if checkHit(
+        Mouse.Target
+    ) then
+
+        return true
+
+    end
+
+    return false
+end
+
+local function getEffectiveDelay()
+
+    local p =
+        math.clamp(
+            triggerPrecision,
+            1,
+            50
+        )
+
+    local factor =
+        1.85
+        - (
+            (p - 1)
+            / 49
+        ) * 1.70
+
+    return math.max(
+        0.03,
+        triggerbotDelay * factor
+    )
+end
+
+local function clickMouse()
+
+    if mouse1press then
+
+        mouse1press()
+
+        task.wait(0.012)
+
+        if mouse1release then
+            mouse1release()
+        end
+
+        return
+    end
+
+    pcall(function()
+
+        local VIM =
+            game:GetService(
+                "VirtualInputManager"
+            )
+
+        VIM:SendMouseButtonEvent(
+            0,
+            0,
+            0,
+            true,
+            game,
+            0
+        )
+
+        task.wait(0.012)
+
+        VIM:SendMouseButtonEvent(
+            0,
+            0,
+            0,
+            false,
+            game,
+            0
+        )
+
+    end)
+end
+
+RunService.RenderStepped:Connect(
+    function()
+
+        if not triggerbotEnabled then
+            return
+        end
+
+        local now =
+            os.clock()
+
+        if now - lastTriggerShot
+            < getEffectiveDelay() then
+
+            return
+        end
+
+        if isEnemyUnderCrosshair() then
+
+            lastTriggerShot =
+                now
+
+            clickMouse()
+
+        end
+
     end
 )
 
@@ -1686,18 +2113,19 @@ local function removeESP(plr)
     local data =
         ESP[plr]
 
-    if data then
-
-        if data.highlight then
-            data.highlight:Destroy()
-        end
-
-        if data.billboard then
-            data.billboard:Destroy()
-        end
-
-        ESP[plr] = nil
+    if not data then
+        return
     end
+
+    if data.highlight then
+        data.highlight:Destroy()
+    end
+
+    if data.billboard then
+        data.billboard:Destroy()
+    end
+
+    ESP[plr] = nil
 end
 
 local function createESP(plr)
@@ -1708,88 +2136,91 @@ local function createESP(plr)
 
     removeESP(plr)
 
-    local char =
+    local character =
         plr.Character
 
-    if not char then
+    if not character then
         return
     end
 
     local root =
-        char:FindFirstChild(
+        character:FindFirstChild(
             "HumanoidRootPart"
         )
 
-    local hum =
-        char:FindFirstChildOfClass(
+    local humanoid =
+        character:FindFirstChildOfClass(
             "Humanoid"
         )
 
-    if not root or not hum then
+    if not root
+        or not humanoid then
+
         return
     end
 
     local data = {
-        character = char,
+        character = character,
         root = root,
-        humanoid = hum
+        humanoid = humanoid
     }
 
     if espBoxes then
 
-        local hl =
+        local highlight =
             Instance.new("Highlight")
 
-        hl.Adornee =
-            char
+        highlight.Adornee =
+            character
 
-        hl.FillColor =
+        highlight.FillColor =
             Theme.Accent
 
-        hl.OutlineColor =
+        highlight.OutlineColor =
             Theme.Accent
 
-        hl.FillTransparency =
+        highlight.FillTransparency =
             0.85
 
-        hl.OutlineTransparency =
+        highlight.OutlineTransparency =
             0.1
 
-        hl.DepthMode =
+        highlight.DepthMode =
             Enum.HighlightDepthMode.AlwaysOnTop
 
-        hl.Parent =
+        highlight.Parent =
             gui
 
         data.highlight =
-            hl
+            highlight
+
     end
 
-    local bill =
+    local billboard =
         Instance.new(
             "BillboardGui"
         )
 
-    bill.Adornee =
+    billboard.Adornee =
         root
 
-    bill.Size =
+    billboard.Size =
         UDim2.fromOffset(
             160,
             55
         )
 
-    bill.StudsOffset =
+    billboard.StudsOffset =
         Vector3.new(
             0,
             3,
             0
         )
 
-    bill.AlwaysOnTop =
+    billboard.AlwaysOnTop =
         true
 
-    bill.Parent =
+    billboard.Parent =
         gui
 
     local label =
@@ -1819,10 +2250,10 @@ local function createESP(plr)
         11
 
     label.Parent =
-        bill
+        billboard
 
     data.billboard =
-        bill
+        billboard
 
     data.label =
         label
@@ -1834,15 +2265,6 @@ end
 local function updateESP()
 
     if not espEnabled then
-
-        for plr in pairs(
-            ESP
-        ) do
-
-            removeESP(plr)
-
-        end
-
         return
     end
 
@@ -1850,43 +2272,42 @@ local function updateESP()
         Players:GetPlayers()
     ) do
 
-        if not shouldTarget(
-            plr
-        ) then
+        if not shouldTarget(plr) then
 
             removeESP(plr)
 
         else
 
-            local char =
+            local character =
                 plr.Character
 
-            if char then
+            if character then
 
                 local root =
-                    char:FindFirstChild(
+                    character:FindFirstChild(
                         "HumanoidRootPart"
                     )
 
-                local hum =
-                    char:FindFirstChildOfClass(
+                local humanoid =
+                    character:FindFirstChildOfClass(
                         "Humanoid"
                     )
 
                 if root
-                    and hum
-                    and hum.Health > 0 then
+                    and humanoid
+                    and humanoid.Health > 0 then
 
                     local data =
                         ESP[plr]
 
                     if not data
-                        or data.character ~= char then
+                        or data.character ~= character then
 
                         createESP(plr)
 
                         data =
                             ESP[plr]
+
                     end
 
                     if data then
@@ -1900,8 +2321,8 @@ local function updateESP()
                             or 0
 
                         local visible =
-                            distance
-                            <= espMaxDistance
+                            distance <=
+                            espMaxDistance
 
                         if data.highlight then
 
@@ -1921,8 +2342,7 @@ local function updateESP()
                         if data.label
                             and visible then
 
-                            local text =
-                                ""
+                            local text = ""
 
                             if espNames then
 
@@ -1942,7 +2362,7 @@ local function updateESP()
                                     )
                                     .. "❤️ "
                                     .. math.floor(
-                                        hum.Health
+                                        humanoid.Health
                                     )
 
                             end
@@ -1965,6 +2385,7 @@ local function updateESP()
 
                             data.label.Text =
                                 text
+
                         end
                     end
 
@@ -1991,201 +2412,107 @@ task.spawn(function()
             updateESP()
         end
 
-        task.wait(
-            0.45
-        )
+        task.wait(0.4)
 
     end
+
 end)
 
 --==================================================
--- TRIGGER BUTTONS
+-- FLOATING BUTTON
 --==================================================
 
-local function setTriggerState(on)
+local floatingButton =
+    Instance.new("TextButton")
 
-    triggerbotEnabled =
-        on == true
-
-    triggerbotButton.Text =
-        triggerbotEnabled
-        and "🔫  Triggerbot  •  ON"
-        or "🔫  Triggerbot  •  OFF"
-
-    playToggleSound(
-        triggerbotEnabled
+floatingButton.Size =
+    UDim2.fromOffset(
+        52,
+        52
     )
+
+floatingButton.Position =
+    UDim2.fromOffset(
+        25,
+        280
+    )
+
+floatingButton.BackgroundColor3 =
+    Theme.Accent
+
+floatingButton.BorderSizePixel = 0
+
+floatingButton.Text =
+    "😈"
+
+floatingButton.TextSize = 19
+
+floatingButton.Visible =
+    false
+
+floatingButton.Parent =
+    gui
+
+addCorner(
+    floatingButton,
+    26
+)
+
+addStroke(
+    floatingButton,
+    0.3
+)
+
+--==================================================
+-- MENU CONTROL
+--==================================================
+
+local function setMenuVisible(
+    visible,
+    showFloating
+)
+
+    if menuClosedForever then
+        return
+    end
+
+    if streamerMode then
+
+        menu.Visible = false
+        floatingButton.Visible = false
+
+        return
+    end
+
+    menu.Visible =
+        visible
+
+    floatingButton.Visible =
+        not visible
+        and showFloating == true
 end
 
-triggerbotButton.MouseButton1Click:Connect(
+closeButton.MouseButton1Click:Connect(
     function()
 
-        setTriggerState(
-            not triggerbotEnabled
+        setMenuVisible(
+            false,
+            true
         )
 
     end
 )
 
-triggerKeyButton.MouseButton1Click:Connect(
+floatingButton.MouseButton1Click:Connect(
     function()
 
-        waitingTriggerKey =
-            true
-
-        waitingMenuKey =
+        setMenuVisible(
+            true,
             false
-
-        triggerKeyButton.Text =
-            "⌨  Presiona tecla Trigger..."
+        )
 
     end
 )
-
-friendsButton.MouseButton1Click:Connect(
-    function()
-
-        ignoreFriends =
-            not ignoreFriends
-
-        friendsButton.Text =
-            ignoreFriends
-            and "👥  Ignorar amigos  •  ON"
-            or "👥  Ignorar amigos  •  OFF"
-
-    end
-)
-
-teamButton.MouseButton1Click:Connect(
-    function()
-
-        ignoreTeam =
-            not ignoreTeam
-
-        teamButton.Text =
-            ignoreTeam
-            and "🟢  Ignorar equipo  •  ON"
-            or "🟢  Ignorar equipo  •  OFF"
-
-    end
-)
-
---==================================================
--- ESP BUTTONS
---==================================================
-
-espButton.MouseButton1Click:Connect(
-    function()
-
-        espEnabled =
-            not espEnabled
-
-        espButton.Text =
-            espEnabled
-            and "👁  ESP  •  ON"
-            or "👁  ESP  •  OFF"
-
-        if not espEnabled then
-
-            for plr in pairs(
-                ESP
-            ) do
-
-                removeESP(plr)
-
-            end
-        end
-    end
-)
-
-espNamesButton.MouseButton1Click:Connect(
-    function()
-
-        espNames =
-            not espNames
-
-        espNamesButton.Text =
-            espNames
-            and "🏷  Nombres  •  ON"
-            or "🏷  Nombres  •  OFF"
-
-    end
-)
-
-espHealthButton.MouseButton1Click:Connect(
-    function()
-
-        espHealth =
-            not espHealth
-
-        espHealthButton.Text =
-            espHealth
-            and "❤️  Vida  •  ON"
-            or "❤️  Vida  •  OFF"
-
-    end
-)
-
-espDistanceButton.MouseButton1Click:Connect(
-    function()
-
-        espDistance =
-            not espDistance
-
-        espDistanceButton.Text =
-            espDistance
-            and "📏  Distancia  •  ON"
-            or "📏  Distancia  •  OFF"
-
-    end
-)
-
-espBoxesButton.MouseButton1Click:Connect(
-    function()
-
-        espBoxes =
-            not espBoxes
-
-        espBoxesButton.Text =
-            espBoxes
-            and "⬜  Boxes  •  ON"
-            or "⬜  Boxes  •  OFF"
-
-        if espEnabled then
-
-            for plr in pairs(
-                ESP
-            ) do
-
-                createESP(plr)
-
-            end
-        end
-    end
-)
-
---==================================================
--- MENU KEY
---==================================================
-
-keyButton.MouseButton1Click:Connect(
-    function()
-
-        waitingMenuKey =
-            true
-
-        waitingTriggerKey =
-            false
-
-        keyButton.Text =
-            "⌨  Presiona tecla menú..."
-
-    end
-)
-
---==================================================
--- CLOSE FOREVER
---==================================================
 
 closeForever.MouseButton1Click:Connect(
     function()
@@ -2199,22 +2526,113 @@ closeForever.MouseButton1Click:Connect(
         espEnabled =
             false
 
-        streamerMode =
-            false
-
         if lowGraphicsEnabled then
             disableLowGraphics()
         end
 
-        for plr in pairs(
-            ESP
-        ) do
-
+        for plr in pairs(ESP) do
             removeESP(plr)
-
         end
 
         gui:Destroy()
+
+    end
+)
+
+--==================================================
+-- PAGE SWITCH
+--==================================================
+
+local function showPage(
+    page,
+    name,
+    title,
+    subtitle
+)
+
+    for _, p in ipairs(pages) do
+        p.Visible = false
+    end
+
+    page.Visible = true
+
+    pageTitle.Text =
+        title
+
+    pageSubtitle.Text =
+        subtitle
+
+    for navName, data in pairs(
+        navButtons
+    ) do
+
+        local selected =
+            navName == name
+
+        data.Button.BackgroundColor3 =
+            selected
+            and Theme.Element
+            or Theme.Sidebar
+
+        data.Label.TextColor3 =
+            selected
+            and Theme.Text
+            or Theme.SubText
+
+        data.Indicator.Visible =
+            selected
+
+    end
+end
+
+triggerNav.MouseButton1Click:Connect(
+    function()
+
+        showPage(
+            triggerPage,
+            "Trigger",
+            "Triggerbot",
+            "Configuración rápida y precisa"
+        )
+
+    end
+)
+
+espNav.MouseButton1Click:Connect(
+    function()
+
+        showPage(
+            espPage,
+            "ESP",
+            "ESP",
+            "Información visual de los jugadores"
+        )
+
+    end
+)
+
+menuNav.MouseButton1Click:Connect(
+    function()
+
+        showPage(
+            menuPage,
+            "Menú",
+            "Configuración",
+            "Personaliza el panel"
+        )
+
+    end
+)
+
+graphicsNav.MouseButton1Click:Connect(
+    function()
+
+        showPage(
+            graphicsPage,
+            "Gráficos",
+            "Gráficos",
+            "Prioriza rendimiento sobre calidad"
+        )
 
     end
 )
@@ -2224,17 +2642,14 @@ closeForever.MouseButton1Click:Connect(
 --==================================================
 
 UserInputService.InputBegan:Connect(
-    function(
-        input,
-        processed
-    )
+    function(input, processed)
 
         if waitingTriggerKey
             and input.UserInputType ==
                 Enum.UserInputType.Keyboard then
 
-            if input.KeyCode
-                ~= Enum.KeyCode.Unknown then
+            if input.KeyCode ~=
+                Enum.KeyCode.Unknown then
 
                 TriggerKey =
                     input.KeyCode
@@ -2242,9 +2657,8 @@ UserInputService.InputBegan:Connect(
                 waitingTriggerKey =
                     false
 
-                triggerKeyButton.Text =
-                    "⌨  Tecla Trigger  •  "
-                    .. TriggerKey.Name
+                triggerKeyValue.Text =
+                    TriggerKey.Name
 
             end
 
@@ -2255,8 +2669,8 @@ UserInputService.InputBegan:Connect(
             and input.UserInputType ==
                 Enum.UserInputType.Keyboard then
 
-            if input.KeyCode
-                ~= Enum.KeyCode.Unknown then
+            if input.KeyCode ~=
+                Enum.KeyCode.Unknown then
 
                 MenuKey =
                     input.KeyCode
@@ -2264,9 +2678,8 @@ UserInputService.InputBegan:Connect(
                 waitingMenuKey =
                     false
 
-                keyButton.Text =
-                    "⌨  Tecla menú  •  "
-                    .. MenuKey.Name
+                menuKeyValue.Text =
+                    MenuKey.Name
 
             end
 
@@ -2280,8 +2693,20 @@ UserInputService.InputBegan:Connect(
         if input.KeyCode ==
             TriggerKey then
 
-            setTriggerState(
+            triggerbotEnabled =
                 not triggerbotEnabled
+
+            triggerToggle:Set(
+                triggerbotEnabled
+            )
+
+            triggerStatus.Text =
+                triggerbotEnabled
+                and "Activado"
+                or "Desactivado"
+
+            playToggleSound(
+                triggerbotEnabled
             )
 
             return
@@ -2292,9 +2717,8 @@ UserInputService.InputBegan:Connect(
 
             if streamerMode then
 
-                setStreamerMode(
+                streamerMode =
                     false
-                )
 
                 setMenuVisible(
                     true,
@@ -2303,28 +2727,20 @@ UserInputService.InputBegan:Connect(
 
             else
 
-                if menu.Visible then
+                setMenuVisible(
+                    not menu.Visible,
+                    false
+                )
 
-                    setMenuVisible(
-                        false,
-                        false
-                    )
-
-                else
-
-                    setMenuVisible(
-                        true,
-                        false
-                    )
-
-                end
             end
+
         end
+
     end
 )
 
 --==================================================
--- MENU DRAG
+-- DRAG
 --==================================================
 
 header.InputBegan:Connect(
@@ -2343,6 +2759,7 @@ header.InputBegan:Connect(
                 menu.Position
 
         end
+
     end
 )
 
@@ -2371,14 +2788,14 @@ UserInputService.InputChanged:Connect(
             menu.Position =
                 UDim2.new(
                     menuStart.X.Scale,
-                    menuStart.X.Offset
-                        + delta.X,
+                    menuStart.X.Offset + delta.X,
 
                     menuStart.Y.Scale,
-                    menuStart.Y.Offset
-                        + delta.Y
+                    menuStart.Y.Offset + delta.Y
                 )
+
         end
+
     end
 )
 
@@ -2393,7 +2810,9 @@ UserInputService.InputEnded:Connect(
 
             activeSlider =
                 nil
+
         end
+
     end
 )
 
@@ -2401,17 +2820,13 @@ UserInputService.InputEnded:Connect(
 -- START
 --==================================================
 
-triggerbotDelay =
-    12 / 100
-
-triggerPrecision =
-    22
-
 showPage(
     triggerPage,
-    triggerTab
+    "Trigger",
+    "Triggerbot",
+    "Configuración rápida y precisa"
 )
 
 print(
-    "😈 CH PC | Trigger Original + ESP + GRÁFICOS ULTRA"
+    "😈 CH PC | MODERN UI V2 | CARGADO"
 )
