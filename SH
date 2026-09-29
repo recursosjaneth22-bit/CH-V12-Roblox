@@ -1,7 +1,8 @@
 --==================================================
--- 😈 CH PC - MODERN UI V2
+-- 😈 CH PC - MODERN UI V3.1
 -- TRIGGER + ESP + GRÁFICOS ULTRA
 -- X = MENÚ · Q = TRIGGER
+-- (Solo rediseño visual — lógica intacta)
 --==================================================
 
 local Players = game:GetService("Players")
@@ -71,27 +72,33 @@ end
 LocalPlayer.CharacterAdded:Connect(setupCharacter)
 
 --==================================================
--- THEME
+-- THEME  (refinado V3)
 --==================================================
 
 local Theme = {
-    Background = Color3.fromRGB(9, 10, 13),
-    Sidebar = Color3.fromRGB(13, 14, 18),
-    Panel = Color3.fromRGB(17, 18, 23),
-    Card = Color3.fromRGB(21, 22, 28),
-    Element = Color3.fromRGB(28, 29, 36),
-    Hover = Color3.fromRGB(36, 37, 46),
+    Background = Color3.fromRGB(11, 12, 16),
+    Sidebar = Color3.fromRGB(15, 16, 21),
+    Panel = Color3.fromRGB(19, 20, 26),
+    Card = Color3.fromRGB(22, 23, 30),
+    CardTop = Color3.fromRGB(27, 28, 36),
+    Element = Color3.fromRGB(29, 30, 38),
+    Hover = Color3.fromRGB(38, 39, 49),
+    Active = Color3.fromRGB(34, 35, 44),
 
-    Text = Color3.fromRGB(245, 245, 248),
-    SubText = Color3.fromRGB(145, 148, 158),
-    Muted = Color3.fromRGB(90, 93, 103),
+    Text = Color3.fromRGB(247, 247, 250),
+    SubText = Color3.fromRGB(150, 153, 163),
+    Muted = Color3.fromRGB(92, 95, 106),
 
-    Accent = Color3.fromRGB(205, 45, 75),
-    AccentLight = Color3.fromRGB(255, 78, 108),
+    Accent = Color3.fromRGB(225, 55, 85),
+    AccentLight = Color3.fromRGB(255, 95, 120),
+    AccentDark = Color3.fromRGB(170, 30, 55),
 
-    Green = Color3.fromRGB(65, 210, 125),
-    Track = Color3.fromRGB(43, 44, 52),
-    White = Color3.fromRGB(255, 255, 255)
+    Green = Color3.fromRGB(70, 215, 130),
+    Track = Color3.fromRGB(40, 41, 50),
+    TrackLight = Color3.fromRGB(50, 51, 61),
+    White = Color3.fromRGB(255, 255, 255),
+    Stroke = Color3.fromRGB(48, 49, 58),
+    StrokeLight = Color3.fromRGB(60, 61, 72)
 }
 
 --==================================================
@@ -139,23 +146,30 @@ local function addCorner(obj, radius)
     return c
 end
 
-local function addStroke(obj, transparency)
+local function addStroke(obj, transparency, thickness, color)
     local s = Instance.new("UIStroke")
-    s.Color = Color3.fromRGB(55, 56, 65)
-    s.Transparency = transparency or 0.5
-    s.Thickness = 1
+    s.Color = color or Theme.Stroke
+    s.Transparency = transparency or 0.4
+    s.Thickness = thickness or 1
     s.Parent = obj
     return s
 end
 
-local function animate(obj, time, props)
+local function addGradient(obj, fromColor, toColor, rotation)
+    local g = Instance.new("UIGradient")
+    g.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, fromColor),
+        ColorSequenceKeypoint.new(1, toColor)
+    })
+    g.Rotation = rotation or 90
+    g.Parent = obj
+    return g
+end
+
+local function animate(obj, time, props, style, dir)
     TweenService:Create(
         obj,
-        TweenInfo.new(
-            time,
-            Enum.EasingStyle.Quart,
-            Enum.EasingDirection.Out
-        ),
+        TweenInfo.new(time, style or Enum.EasingStyle.Quart, dir or Enum.EasingDirection.Out),
         props
     ):Play()
 end
@@ -166,65 +180,100 @@ end
 
 local menu = Instance.new("Frame")
 menu.Name = "Menu"
-menu.Size = UDim2.fromOffset(680, 450)
-menu.Position = UDim2.new(0.5, -340, 0.5, -225)
+menu.Size = UDim2.fromOffset(700, 460)
+menu.Position = UDim2.new(0.5, -350, 0.5, -230)
 menu.BackgroundColor3 = Theme.Background
 menu.BorderSizePixel = 0
 menu.Active = true
 menu.Parent = gui
 
-addCorner(menu, 16)
-addStroke(menu, 0.35)
+addCorner(menu, 18)
+addStroke(menu, 0.3, 1, Theme.StrokeLight)
+
+-- Acento superior (barra gradiente sutil)
+local topAccent = Instance.new("Frame")
+topAccent.Name = "TopAccent"
+topAccent.Size = UDim2.new(1, 0, 0, 2)
+topAccent.Position = UDim2.fromOffset(0, 0)
+topAccent.BackgroundColor3 = Theme.Accent
+topAccent.BorderSizePixel = 0
+topAccent.ZIndex = 2
+topAccent.Parent = menu
+
+addCorner(topAccent, 18)
+addGradient(topAccent, Theme.AccentLight, Theme.AccentDark, 0)
 
 --==================================================
 -- SIDEBAR
 --==================================================
 
 local sidebar = Instance.new("Frame")
-sidebar.Size = UDim2.new(0, 175, 1, 0)
+sidebar.Name = "Sidebar"
+sidebar.Size = UDim2.new(0, 185, 1, -2)
+sidebar.Position = UDim2.fromOffset(0, 2)
 sidebar.BackgroundColor3 = Theme.Sidebar
 sidebar.BorderSizePixel = 0
 sidebar.Parent = menu
 
-addCorner(sidebar, 16)
+addCorner(sidebar, 18)
+
+-- Separador derecho del sidebar
+local sidebarDivider = Instance.new("Frame")
+sidebarDivider.Size = UDim2.fromOffset(1, 1)
+sidebarDivider.Position = UDim2.new(1, -1, 0, 0)
+sidebarDivider.BackgroundColor3 = Theme.Stroke
+sidebarDivider.BackgroundTransparency = 0.3
+sidebarDivider.BorderSizePixel = 0
+sidebarDivider.Parent = sidebar
 
 --==================================================
 -- LOGO
 --==================================================
 
 local logo = Instance.new("Frame")
-logo.Size = UDim2.new(1, -24, 0, 68)
-logo.Position = UDim2.fromOffset(12, 12)
+logo.Name = "Logo"
+logo.Size = UDim2.new(1, -24, 0, 64)
+logo.Position = UDim2.fromOffset(12, 14)
 logo.BackgroundColor3 = Theme.Panel
 logo.BorderSizePixel = 0
 logo.Parent = sidebar
 
-addCorner(logo, 12)
+addCorner(logo, 14)
+addStroke(logo, 0.6, 1, Theme.Stroke)
+addGradient(logo, Theme.Panel, Theme.Card, 90)
 
-local logoIcon = Instance.new("TextLabel")
-logoIcon.Size = UDim2.fromOffset(42, 42)
-logoIcon.Position = UDim2.fromOffset(11, 13)
+local logoIcon = Instance.new("Frame")
+logoIcon.Name = "Icon"
+logoIcon.Size = UDim2.fromOffset(44, 44)
+logoIcon.Position = UDim2.fromOffset(10, 10)
 logoIcon.BackgroundColor3 = Theme.Accent
-logoIcon.Text = "😈"
-logoIcon.TextSize = 18
+logoIcon.BorderSizePixel = 0
 logoIcon.Parent = logo
 
-addCorner(logoIcon, 10)
+addCorner(logoIcon, 12)
+addGradient(logoIcon, Theme.AccentLight, Theme.AccentDark, 115)
+
+local logoEmoji = Instance.new("TextLabel")
+logoEmoji.Size = UDim2.fromScale(1, 1)
+logoEmoji.BackgroundTransparency = 1
+logoEmoji.Text = "😈"
+logoEmoji.TextSize = 20
+logoEmoji.Parent = logoIcon
 
 local logoName = Instance.new("TextLabel")
-logoName.Size = UDim2.new(1, -62, 0, 22)
-logoName.Position = UDim2.fromOffset(60, 12)
+logoName.Size = UDim2.new(1, -64, 0, 22)
+logoName.Position = UDim2.fromOffset(62, 12)
 logoName.BackgroundTransparency = 1
 logoName.Text = "CH PC"
 logoName.TextColor3 = Theme.Text
 logoName.Font = Enum.Font.GothamBold
-logoName.TextSize = 15
+logoName.TextSize = 16
 logoName.TextXAlignment = Enum.TextXAlignment.Left
 logoName.Parent = logo
 
 local logoSub = Instance.new("TextLabel")
-logoSub.Size = UDim2.new(1, -62, 0, 16)
-logoSub.Position = UDim2.fromOffset(60, 35)
+logoSub.Size = UDim2.new(1, -64, 0, 14)
+logoSub.Position = UDim2.fromOffset(62, 34)
 logoSub.BackgroundTransparency = 1
 logoSub.Text = "CONTROL PANEL"
 logoSub.TextColor3 = Theme.AccentLight
@@ -233,13 +282,23 @@ logoSub.TextSize = 8
 logoSub.TextXAlignment = Enum.TextXAlignment.Left
 logoSub.Parent = logo
 
+-- Punto de estado (online)
+local statusDot = Instance.new("Frame")
+statusDot.Size = UDim2.fromOffset(6, 6)
+statusDot.Position = UDim2.new(1, -14, 0, 14)
+statusDot.BackgroundColor3 = Theme.Green
+statusDot.BorderSizePixel = 0
+statusDot.Parent = logo
+
+addCorner(statusDot, 3)
+
 --==================================================
 -- NAVIGATION
 --==================================================
 
 local navTitle = Instance.new("TextLabel")
 navTitle.Size = UDim2.new(1, -28, 0, 18)
-navTitle.Position = UDim2.fromOffset(14, 91)
+navTitle.Position = UDim2.fromOffset(14, 88)
 navTitle.BackgroundTransparency = 1
 navTitle.Text = "NAVEGACIÓN"
 navTitle.TextColor3 = Theme.Muted
@@ -252,7 +311,7 @@ local navButtons = {}
 
 local function createNav(name, icon, y)
     local button = Instance.new("TextButton")
-    button.Size = UDim2.new(1, -24, 0, 42)
+    button.Size = UDim2.new(1, -24, 0, 44)
     button.Position = UDim2.fromOffset(12, y)
     button.BackgroundColor3 = Theme.Sidebar
     button.BorderSizePixel = 0
@@ -260,10 +319,22 @@ local function createNav(name, icon, y)
     button.AutoButtonColor = false
     button.Parent = sidebar
 
-    addCorner(button, 9)
+    addCorner(button, 11)
+
+    -- Fondo de selección (gradiente sutil)
+    local selectedBg = Instance.new("Frame")
+    selectedBg.Name = "SelectedBg"
+    selectedBg.Size = UDim2.fromScale(1, 1)
+    selectedBg.BackgroundColor3 = Theme.Active
+    selectedBg.BorderSizePixel = 0
+    selectedBg.BackgroundTransparency = 1
+    selectedBg.Parent = button
+
+    addCorner(selectedBg, 11)
+    addGradient(selectedBg, Theme.Active, Theme.Element, 90)
 
     local indicator = Instance.new("Frame")
-    indicator.Size = UDim2.fromOffset(3, 20)
+    indicator.Size = UDim2.fromOffset(3, 22)
     indicator.Position = UDim2.fromOffset(0, 11)
     indicator.BackgroundColor3 = Theme.Accent
     indicator.BorderSizePixel = 0
@@ -271,115 +342,181 @@ local function createNav(name, icon, y)
     indicator.Parent = button
 
     addCorner(indicator, 2)
+    addGradient(indicator, Theme.AccentLight, Theme.AccentDark, 90)
 
     local iconLabel = Instance.new("TextLabel")
-    iconLabel.Size = UDim2.fromOffset(30, 42)
-    iconLabel.Position = UDim2.fromOffset(9, 0)
+    iconLabel.Size = UDim2.fromOffset(30, 44)
+    iconLabel.Position = UDim2.fromOffset(10, 0)
     iconLabel.BackgroundTransparency = 1
     iconLabel.Text = icon
-    iconLabel.TextSize = 15
+    iconLabel.TextSize = 16
     iconLabel.Parent = button
 
     local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, -48, 1, 0)
-    label.Position = UDim2.fromOffset(45, 0)
+    label.Size = UDim2.new(1, -50, 1, 0)
+    label.Position = UDim2.fromOffset(42, 0)
     label.BackgroundTransparency = 1
     label.Text = name
     label.TextColor3 = Theme.SubText
     label.Font = Enum.Font.GothamMedium
-    label.TextSize = 11
+    label.TextSize = 12
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.Parent = button
 
     navButtons[name] = {
         Button = button,
         Indicator = indicator,
-        Label = label
+        Label = label,
+        SelectedBg = selectedBg,
+        Icon = iconLabel
     }
+
+    -- Hover suave
+    button.MouseEnter:Connect(function()
+        if not indicator.Visible then
+            animate(selectedBg, 0.18, { BackgroundTransparency = 0.6 })
+            animate(label, 0.18, { TextColor3 = Theme.Text })
+        end
+    end)
+
+    button.MouseLeave:Connect(function()
+        if not indicator.Visible then
+            animate(selectedBg, 0.18, { BackgroundTransparency = 1 })
+            animate(label, 0.18, { TextColor3 = Theme.SubText })
+        end
+    end)
 
     return button
 end
 
-local triggerNav = createNav("Trigger", "🔫", 116)
-local espNav = createNav("ESP", "👁", 164)
-local menuNav = createNav("Menú", "⚙", 212)
-local graphicsNav = createNav("Gráficos", "⚡", 260)
+local triggerNav = createNav("Trigger", "🔫", 114)
+local espNav = createNav("ESP", "👁", 166)
+local menuNav = createNav("Menú", "⚙", 218)
+local graphicsNav = createNav("Gráficos", "⚡", 270)
 
-local footer = Instance.new("TextLabel")
-footer.Size = UDim2.new(1, -24, 0, 18)
-footer.Position = UDim2.new(0, 12, 1, -30)
+-- Footer con versión
+local footer = Instance.new("Frame")
+footer.Size = UDim2.new(1, -24, 0, 26)
+footer.Position = UDim2.new(0, 12, 1, -34)
 footer.BackgroundTransparency = 1
-footer.Text = "CH PC  •  MODERN"
-footer.TextColor3 = Theme.Muted
-footer.Font = Enum.Font.GothamBold
-footer.TextSize = 8
-footer.TextXAlignment = Enum.TextXAlignment.Left
 footer.Parent = sidebar
+
+local footerText = Instance.new("TextLabel")
+footerText.Size = UDim2.fromScale(1, 1)
+footerText.BackgroundTransparency = 1
+footerText.Text = "CH PC  •  V3 MODERN"
+footerText.TextColor3 = Theme.Muted
+footerText.Font = Enum.Font.GothamBold
+footerText.TextSize = 8
+footerText.TextXAlignment = Enum.TextXAlignment.Left
+footerText.Parent = footer
+
+local footerDot = Instance.new("Frame")
+footerDot.Size = UDim2.fromOffset(4, 4)
+footerDot.Position = UDim2.new(1, -8, 0.5, -2)
+footerDot.BackgroundColor3 = Theme.Accent
+footerDot.BorderSizePixel = 0
+footerDot.Parent = footer
+
+addCorner(footerDot, 2)
 
 --==================================================
 -- CONTENT
 --==================================================
 
 local content = Instance.new("Frame")
-content.Size = UDim2.new(1, -175, 1, 0)
-content.Position = UDim2.fromOffset(175, 0)
+content.Name = "Content"
+content.Size = UDim2.new(1, -185, 1, -2)
+content.Position = UDim2.fromOffset(185, 2)
 content.BackgroundColor3 = Theme.Background
 content.BorderSizePixel = 0
 content.Parent = menu
+
+addCorner(content, 18)
 
 --==================================================
 -- HEADER
 --==================================================
 
 local header = Instance.new("Frame")
-header.Size = UDim2.new(1, -28, 0, 60)
-header.Position = UDim2.fromOffset(14, 8)
+header.Name = "Header"
+header.Size = UDim2.new(1, -32, 0, 64)
+header.Position = UDim2.fromOffset(16, 10)
 header.BackgroundTransparency = 1
 header.Parent = content
 
+-- Barra de acento decorativa junto al título
+local titleAccent = Instance.new("Frame")
+titleAccent.Size = UDim2.fromOffset(3, 22)
+titleAccent.Position = UDim2.fromOffset(0, 10)
+titleAccent.BackgroundColor3 = Theme.Accent
+titleAccent.BorderSizePixel = 0
+titleAccent.Parent = header
+
+addCorner(titleAccent, 2)
+addGradient(titleAccent, Theme.AccentLight, Theme.AccentDark, 90)
+
 local pageTitle = Instance.new("TextLabel")
-pageTitle.Size = UDim2.new(1, -55, 0, 25)
-pageTitle.Position = UDim2.fromOffset(2, 7)
+pageTitle.Size = UDim2.new(1, -70, 0, 26)
+pageTitle.Position = UDim2.fromOffset(12, 6)
 pageTitle.BackgroundTransparency = 1
 pageTitle.Text = "Triggerbot"
 pageTitle.TextColor3 = Theme.Text
 pageTitle.Font = Enum.Font.GothamBold
-pageTitle.TextSize = 20
+pageTitle.TextSize = 22
 pageTitle.TextXAlignment = Enum.TextXAlignment.Left
 pageTitle.Parent = header
 
 local pageSubtitle = Instance.new("TextLabel")
-pageSubtitle.Size = UDim2.new(1, -55, 0, 18)
-pageSubtitle.Position = UDim2.fromOffset(3, 34)
+pageSubtitle.Size = UDim2.new(1, -70, 0, 18)
+pageSubtitle.Position = UDim2.fromOffset(13, 34)
 pageSubtitle.BackgroundTransparency = 1
 pageSubtitle.Text = "Configuración rápida y precisa"
 pageSubtitle.TextColor3 = Theme.SubText
 pageSubtitle.Font = Enum.Font.Gotham
-pageSubtitle.TextSize = 9
+pageSubtitle.TextSize = 10
 pageSubtitle.TextXAlignment = Enum.TextXAlignment.Left
 pageSubtitle.Parent = header
 
+-- Botón cerrar rediseñado
 local closeButton = Instance.new("TextButton")
-closeButton.Size = UDim2.fromOffset(32, 32)
-closeButton.Position = UDim2.new(1, -32, 0, 8)
+closeButton.Name = "Close"
+closeButton.Size = UDim2.fromOffset(34, 34)
+closeButton.Position = UDim2.new(1, -34, 0, 6)
 closeButton.BackgroundColor3 = Theme.Element
 closeButton.BorderSizePixel = 0
 closeButton.Text = "×"
 closeButton.TextColor3 = Theme.SubText
 closeButton.Font = Enum.Font.GothamBold
-closeButton.TextSize = 18
+closeButton.TextSize = 20
 closeButton.AutoButtonColor = false
 closeButton.Parent = header
 
-addCorner(closeButton, 9)
+addCorner(closeButton, 10)
+addStroke(closeButton, 0.5, 1, Theme.Stroke)
+
+closeButton.MouseEnter:Connect(function()
+    animate(closeButton, 0.15, {
+        BackgroundColor3 = Theme.Accent,
+        TextColor3 = Theme.White
+    })
+end)
+
+closeButton.MouseLeave:Connect(function()
+    animate(closeButton, 0.15, {
+        BackgroundColor3 = Theme.Element,
+        TextColor3 = Theme.SubText
+    })
+end)
 
 --==================================================
 -- PAGE HOLDER
 --==================================================
 
 local pageHolder = Instance.new("Frame")
-pageHolder.Size = UDim2.new(1, -28, 1, -78)
-pageHolder.Position = UDim2.fromOffset(14, 72)
+pageHolder.Name = "PageHolder"
+pageHolder.Size = UDim2.new(1, -32, 1, -84)
+pageHolder.Position = UDim2.fromOffset(16, 78)
 pageHolder.BackgroundTransparency = 1
 pageHolder.Parent = content
 
@@ -390,23 +527,19 @@ local function createPage()
     page.Size = UDim2.fromScale(1, 1)
     page.BackgroundTransparency = 1
     page.BorderSizePixel = 0
-    page.ScrollBarThickness = 3
+    page.ScrollBarThickness = 4
     page.ScrollBarImageColor3 = Theme.Accent
+    page.ScrollBarImageTransparency = 0.2
     page.CanvasSize = UDim2.fromOffset(0, 0)
     page.Visible = false
     page.Parent = pageHolder
 
     local layout = Instance.new("UIListLayout")
-    layout.Padding = UDim.new(0, 9)
+    layout.Padding = UDim.new(0, 10)
     layout.Parent = page
 
-    layout:GetPropertyChangedSignal(
-        "AbsoluteContentSize"
-    ):Connect(function()
-        page.CanvasSize = UDim2.fromOffset(
-            0,
-            layout.AbsoluteContentSize.Y + 12
-        )
+    layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        page.CanvasSize = UDim2.fromOffset(0, layout.AbsoluteContentSize.Y + 14)
     end)
 
     table.insert(pages, page)
@@ -430,8 +563,9 @@ local function createCard(parent, height)
     card.BorderSizePixel = 0
     card.Parent = parent
 
-    addCorner(card, 12)
-    addStroke(card, 0.6)
+    addCorner(card, 14)
+    addStroke(card, 0.55, 1, Theme.Stroke)
+    addGradient(card, Theme.CardTop, Theme.Card, 90)
 
     return card
 end
@@ -469,101 +603,50 @@ end
 -- TOGGLE
 --==================================================
 
-local function createToggle(
-    parent,
-    y,
-    title,
-    description,
-    initial,
-    callback
-)
-
+local function createToggle(parent, y, title, description, initial, callback)
     local holder = Instance.new("Frame")
-    holder.Size = UDim2.new(1, -20, 0, 46)
+    holder.Size = UDim2.new(1, -20, 0, 48)
     holder.Position = UDim2.fromOffset(10, y)
     holder.BackgroundTransparency = 1
     holder.Parent = parent
 
-    createLabel(
-        holder,
-        title,
-        0,
-        2,
-        250,
-        18,
-        10,
-        Theme.Text
-    )
-
-    createLabel(
-        holder,
-        description,
-        0,
-        22,
-        290,
-        16,
-        8,
-        Theme.SubText
-    )
+    createLabel(holder, title, 0, 3, 250, 18, 11, Theme.Text)
+    createLabel(holder, description, 0, 23, 290, 16, 8, Theme.SubText)
 
     local button = Instance.new("TextButton")
-    button.Size = UDim2.fromOffset(48, 24)
-    button.Position = UDim2.new(1, -48, 0, 8)
-    button.BackgroundColor3 =
-        initial and Theme.Accent or Theme.Track
+    button.Size = UDim2.fromOffset(50, 26)
+    button.Position = UDim2.new(1, -50, 0, 8)
+    button.BackgroundColor3 = initial and Theme.Accent or Theme.Track
     button.BorderSizePixel = 0
     button.Text = ""
     button.AutoButtonColor = false
     button.Parent = holder
 
-    addCorner(button, 12)
+    addCorner(button, 13)
+    addStroke(button, 0.2, 1, initial and Theme.AccentDark or Theme.TrackLight)
 
     local knob = Instance.new("Frame")
-    knob.Size = UDim2.fromOffset(18, 18)
-    knob.Position =
-        initial
-        and UDim2.new(1, -21, 0.5, -9)
-        or UDim2.fromOffset(3, 3)
+    knob.Size = UDim2.fromOffset(20, 20)
+    knob.Position = initial and UDim2.new(1, -23, 0.5, -10) or UDim2.fromOffset(3, 3)
     knob.BackgroundColor3 = Theme.White
     knob.BorderSizePixel = 0
     knob.Parent = button
 
-    addCorner(knob, 9)
+    addCorner(knob, 10)
+    addStroke(knob, 0.3, 1, Theme.StrokeLight)
 
     local state = initial
 
     local function setState(value, callCallback)
         state = value == true
 
-        animate(
-            button,
-            0.14,
-            {
-                BackgroundColor3 =
-                    state
-                    and Theme.Accent
-                    or Theme.Track
-            }
-        )
+        animate(button, 0.16, {
+            BackgroundColor3 = state and Theme.Accent or Theme.Track
+        })
 
-        animate(
-            knob,
-            0.14,
-            {
-                Position =
-                    state
-                    and UDim2.new(
-                        1,
-                        -21,
-                        0.5,
-                        -9
-                    )
-                    or UDim2.fromOffset(
-                        3,
-                        3
-                    )
-            }
-        )
+        animate(knob, 0.18, {
+            Position = state and UDim2.new(1, -23, 0.5, -10) or UDim2.fromOffset(3, 3)
+        }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 
         if callCallback and callback then
             callback(state)
@@ -575,14 +658,8 @@ local function createToggle(
     end)
 
     return {
-        Set = function(_, value)
-            setState(value, false)
-        end,
-
-        Get = function()
-            return state
-        end,
-
+        Set = function(_, value) setState(value, false) end,
+        Get = function() return state end,
         Button = button
     }
 end
@@ -591,16 +668,9 @@ end
 -- ACTION BUTTON
 --==================================================
 
-local function createAction(
-    parent,
-    y,
-    title,
-    description,
-    callback
-)
-
+local function createAction(parent, y, title, description, callback)
     local button = Instance.new("TextButton")
-    button.Size = UDim2.new(1, -20, 0, 46)
+    button.Size = UDim2.new(1, -20, 0, 48)
     button.Position = UDim2.fromOffset(10, y)
     button.BackgroundColor3 = Theme.Element
     button.BorderSizePixel = 0
@@ -608,48 +678,19 @@ local function createAction(
     button.AutoButtonColor = false
     button.Parent = parent
 
-    addCorner(button, 9)
+    addCorner(button, 11)
+    addStroke(button, 0.5, 1, Theme.Stroke)
+    addGradient(button, Theme.Hover, Theme.Element, 90)
 
-    createLabel(
-        button,
-        title,
-        12,
-        5,
-        300,
-        17,
-        10,
-        Theme.Text
-    )
-
-    createLabel(
-        button,
-        description,
-        12,
-        24,
-        400,
-        15,
-        8,
-        Theme.SubText
-    )
+    createLabel(button, title, 14, 6, 300, 18, 11, Theme.Text)
+    createLabel(button, description, 14, 25, 400, 15, 8, Theme.SubText)
 
     button.MouseEnter:Connect(function()
-        animate(
-            button,
-            0.12,
-            {
-                BackgroundColor3 = Theme.Hover
-            }
-        )
+        animate(button, 0.14, { BackgroundColor3 = Theme.Hover })
     end)
 
     button.MouseLeave:Connect(function()
-        animate(
-            button,
-            0.12,
-            {
-                BackgroundColor3 = Theme.Element
-            }
-        )
+        animate(button, 0.14, { BackgroundColor3 = Theme.Element })
     end)
 
     button.MouseButton1Click:Connect(callback)
@@ -661,18 +702,9 @@ end
 -- SLIDER
 --==================================================
 
-local function createSlider(
-    parent,
-    y,
-    title,
-    min,
-    max,
-    value,
-    callback
-)
-
+local function createSlider(parent, y, title, min, max, value, callback)
     local holder = Instance.new("Frame")
-    holder.Size = UDim2.new(1, -20, 0, 55)
+    holder.Size = UDim2.new(1, -20, 0, 58)
     holder.Position = UDim2.fromOffset(10, y)
     holder.BackgroundTransparency = 1
     holder.Parent = parent
@@ -683,13 +715,26 @@ local function createSlider(
     label.Text = title .. tostring(value)
     label.TextColor3 = Theme.Text
     label.Font = Enum.Font.GothamMedium
-    label.TextSize = 9
+    label.TextSize = 10
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.Parent = holder
 
+    -- Valor numérico a la derecha
+    local valueBadge = Instance.new("TextLabel")
+    valueBadge.Size = UDim2.fromOffset(44, 18)
+    valueBadge.Position = UDim2.new(1, -44, 0, 0)
+    valueBadge.BackgroundColor3 = Theme.Element
+    valueBadge.Text = tostring(value)
+    valueBadge.TextColor3 = Theme.AccentLight
+    valueBadge.Font = Enum.Font.GothamBold
+    valueBadge.TextSize = 9
+    valueBadge.Parent = holder
+
+    addCorner(valueBadge, 6)
+
     local bar = Instance.new("TextButton")
-    bar.Size = UDim2.new(1, 0, 0, 6)
-    bar.Position = UDim2.fromOffset(0, 31)
+    bar.Size = UDim2.new(1, 0, 0, 7)
+    bar.Position = UDim2.fromOffset(0, 33)
     bar.BackgroundColor3 = Theme.Track
     bar.BorderSizePixel = 0
     bar.Text = ""
@@ -704,93 +749,49 @@ local function createSlider(
     fill.Parent = bar
 
     addCorner(fill, 4)
+    addGradient(fill, Theme.AccentLight, Theme.AccentDark, 0)
 
     local knob = Instance.new("Frame")
-    knob.Size = UDim2.fromOffset(12, 12)
+    knob.Size = UDim2.fromOffset(14, 14)
     knob.AnchorPoint = Vector2.new(0.5, 0.5)
     knob.BackgroundColor3 = Theme.White
     knob.BorderSizePixel = 0
     knob.Parent = bar
 
-    addCorner(knob, 6)
+    addCorner(knob, 7)
+    addStroke(knob, 0.2, 1.5, Theme.Accent)
 
-    local slider = {
-        value = value,
-        update = nil
-    }
+    local slider = { value = value, update = nil }
 
     local function update(x)
-
         local width = bar.AbsoluteSize.X
+        if width <= 0 then return end
 
-        if width <= 0 then
-            return
-        end
-
-        local percent = math.clamp(
-            (x - bar.AbsolutePosition.X) / width,
-            0,
-            1
-        )
-
-        local newValue = math.floor(
-            min + (max - min) * percent + 0.5
-        )
+        local percent = math.clamp((x - bar.AbsolutePosition.X) / width, 0, 1)
+        local newValue = math.floor(min + (max - min) * percent + 0.5)
 
         slider.value = newValue
+        label.Text = title .. tostring(newValue)
+        valueBadge.Text = tostring(newValue)
 
-        label.Text =
-            title .. tostring(newValue)
+        fill.Size = UDim2.new(percent, 0, 1, 0)
+        knob.Position = UDim2.new(percent, 0, 0.5, 0)
 
-        fill.Size =
-            UDim2.new(
-                percent,
-                0,
-                1,
-                0
-            )
-
-        knob.Position =
-            UDim2.new(
-                percent,
-                0,
-                0.5,
-                0
-            )
-
-        if callback then
-            callback(newValue)
-        end
+        if callback then callback(newValue) end
     end
 
     slider.update = update
 
     bar.InputBegan:Connect(function(input)
-
-        if input.UserInputType ==
-            Enum.UserInputType.MouseButton1 then
-
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
             activeSlider = slider
-
-            update(
-                input.Position.X
-            )
+            update(input.Position.X)
         end
     end)
 
     task.defer(function()
-
-        local percent =
-            math.clamp(
-                (value - min) / (max - min),
-                0,
-                1
-            )
-
-        update(
-            bar.AbsolutePosition.X
-            + bar.AbsoluteSize.X * percent
-        )
+        local percent = math.clamp((value - min) / (max - min), 0, 1)
+        update(bar.AbsolutePosition.X + bar.AbsoluteSize.X * percent)
     end)
 
     return slider
@@ -800,1110 +801,404 @@ end
 -- TRIGGER PAGE
 --==================================================
 
-local triggerCard =
-    createCard(
-        triggerPage,
-        86
-    )
+local triggerCard = createCard(triggerPage, 90)
 
-createLabel(
-    triggerCard,
-    "🔫  TRIGGERBOT",
-    18,
-    12,
-    250,
-    20,
-    12,
-    Theme.Text
-)
+createLabel(triggerCard, "🔫  TRIGGERBOT", 18, 14, 250, 20, 13, Theme.Text)
 
-local triggerStatus =
-    createLabel(
-        triggerCard,
-        "Desactivado",
-        18,
-        38,
-        250,
-        17,
-        8,
-        Theme.SubText
-    )
+local triggerStatus = createLabel(triggerCard, "Desactivado", 18, 40, 250, 17, 9, Theme.SubText)
 
-local triggerToggle =
-    createToggle(
-        triggerCard,
-        0,
-        "",
-        "",
-        false,
-        function(on)
+-- Punto de estado del trigger
+local triggerStatusDot = Instance.new("Frame")
+triggerStatusDot.Size = UDim2.fromOffset(7, 7)
+triggerStatusDot.Position = UDim2.fromOffset(18, 66)
+triggerStatusDot.BackgroundColor3 = Theme.Muted
+triggerStatusDot.BorderSizePixel = 0
+triggerStatusDot.Parent = triggerCard
 
-            triggerbotEnabled = on
+addCorner(triggerStatusDot, 4)
 
-            triggerStatus.Text =
-                on
-                and "Activado"
-                or "Desactivado"
+local triggerStatusText = Instance.new("TextLabel")
+triggerStatusText.Size = UDim2.new(0, 200, 0, 14)
+triggerStatusText.Position = UDim2.fromOffset(30, 64)
+triggerStatusText.BackgroundTransparency = 1
+triggerStatusText.Text = "Listo para activar"
+triggerStatusText.TextColor3 = Theme.Muted
+triggerStatusText.Font = Enum.Font.GothamBold
+triggerStatusText.TextSize = 8
+triggerStatusText.TextXAlignment = Enum.TextXAlignment.Left
+triggerStatusText.Parent = triggerCard
 
-            playToggleSound(on)
+local triggerToggle = createToggle(triggerCard, 0, "", "", false, function(on)
+    triggerbotEnabled = on
+    triggerStatus.Text = on and "Activado" or "Desactivado"
+    triggerStatusDot.BackgroundColor3 = on and Theme.Green or Theme.Muted
+    triggerStatusText.Text = on and "Funcionando" or "Listo para activar"
+    triggerStatusText.TextColor3 = on and Theme.Green or Theme.Muted
+    playToggleSound(on)
+end)
 
-        end
-    )
+triggerToggle.Button.Position = UDim2.new(1, -60, 0, 32)
 
-triggerToggle.Button.Position =
-    UDim2.new(
-        1,
-        -58,
-        0,
-        30
-    )
+createSection(triggerPage, "CONFIGURACIÓN")
 
-createSection(
-    triggerPage,
-    "CONFIGURACIÓN"
-)
+local triggerConfig = createCard(triggerPage, 190)
 
-local triggerConfig =
-    createCard(
-        triggerPage,
-        185
-    )
+local triggerKeyText = createLabel(triggerConfig, "Tecla Trigger", 14, 10, 180, 18, 11, Theme.Text)
+createLabel(triggerConfig, "Pulsa para reasignar", 14, 30, 180, 14, 8, Theme.SubText)
 
-local triggerKeyText =
-    createLabel(
-        triggerConfig,
-        "Tecla Trigger",
-        12,
-        8,
-        180,
-        18,
-        10,
-        Theme.Text
-    )
+local triggerKeyValue = Instance.new("TextLabel")
+triggerKeyValue.Size = UDim2.fromOffset(74, 26)
+triggerKeyValue.Position = UDim2.new(1, -86, 0, 6)
+triggerKeyValue.BackgroundColor3 = Theme.Track
+triggerKeyValue.Text = "Q"
+triggerKeyValue.TextColor3 = Theme.AccentLight
+triggerKeyValue.Font = Enum.Font.GothamBold
+triggerKeyValue.TextSize = 10
+triggerKeyValue.Parent = triggerConfig
 
-local triggerKeyValue =
-    Instance.new("TextLabel")
+addCorner(triggerKeyValue, 7)
+addStroke(triggerKeyValue, 0.4, 1, Theme.Stroke)
 
-triggerKeyValue.Size =
-    UDim2.fromOffset(
-        70,
-        24
-    )
-
-triggerKeyValue.Position =
-    UDim2.new(
-        1,
-        -82,
-        0,
-        5
-    )
-
-triggerKeyValue.BackgroundColor3 =
-    Theme.Track
-
-triggerKeyValue.Text =
-    "Q"
-
-triggerKeyValue.TextColor3 =
-    Theme.AccentLight
-
-triggerKeyValue.Font =
-    Enum.Font.GothamBold
-
-triggerKeyValue.TextSize = 9
-triggerKeyValue.Parent =
-    triggerConfig
-
-addCorner(
-    triggerKeyValue,
-    6
-)
-
-local triggerKeyAction =
-    Instance.new("TextButton")
-
-triggerKeyAction.Size =
-    UDim2.new(
-        1,
-        -20,
-        0,
-        40
-    )
-
-triggerKeyAction.Position =
-    UDim2.fromOffset(
-        10,
-        0
-    )
-
+local triggerKeyAction = Instance.new("TextButton")
+triggerKeyAction.Size = UDim2.new(1, -20, 0, 42)
+triggerKeyAction.Position = UDim2.fromOffset(10, 0)
 triggerKeyAction.BackgroundTransparency = 1
 triggerKeyAction.Text = ""
-triggerKeyAction.Parent =
-    triggerConfig
+triggerKeyAction.Parent = triggerConfig
 
-triggerKeyAction.MouseButton1Click:Connect(
-    function()
+triggerKeyAction.MouseButton1Click:Connect(function()
+    waitingTriggerKey = true
+    waitingMenuKey = false
+    triggerKeyValue.Text = "..."
+end)
 
-        waitingTriggerKey =
-            true
+createSlider(triggerConfig, 54, "Velocidad  ", 1, 50, 12, function(v)
+    triggerbotDelay = v / 100
+end)
 
-        waitingMenuKey =
-            false
+createSlider(triggerConfig, 118, "Precisión  ", 1, 50, 22, function(v)
+    triggerPrecision = v
+end)
 
-        triggerKeyValue.Text =
-            "..."
+local triggerFilter = createCard(triggerPage, 135)
 
-    end
-)
+createSection(triggerFilter, "FILTROS")
 
-createSlider(
-    triggerConfig,
-    50,
-    "Velocidad  ",
-    1,
-    50,
-    12,
-    function(v)
+createToggle(triggerFilter, 24, "👥  Ignorar amigos", "No apunta a tus amigos", true, function(on)
+    ignoreFriends = on
+end)
 
-        triggerbotDelay =
-            v / 100
-
-    end
-)
-
-createSlider(
-    triggerConfig,
-    112,
-    "Precisión  ",
-    1,
-    50,
-    22,
-    function(v)
-
-        triggerPrecision =
-            v
-
-    end
-)
-
-local triggerFilter =
-    createCard(
-        triggerPage,
-        130
-    )
-
-createSection(
-    triggerFilter,
-    "FILTROS"
-)
-
-createToggle(
-    triggerFilter,
-    24,
-    "👥  Ignorar amigos",
-    "No apunta a tus amigos",
-    true,
-    function(on)
-
-        ignoreFriends =
-            on
-
-    end
-)
-
-createToggle(
-    triggerFilter,
-    70,
-    "🟢  Ignorar equipo",
-    "No apunta a compañeros",
-    true,
-    function(on)
-
-        ignoreTeam =
-            on
-
-    end
-)
+createToggle(triggerFilter, 72, "🟢  Ignorar equipo", "No apunta a compañeros", true, function(on)
+    ignoreTeam = on
+end)
 
 --==================================================
 -- ESP PAGE
 --==================================================
 
-local espMain =
-    createCard(
-        espPage,
-        86
-    )
+local espMain = createCard(espPage, 90)
 
-createLabel(
-    espMain,
-    "👁  ESP",
-    18,
-    12,
-    200,
-    20,
-    12,
-    Theme.Text
-)
+createLabel(espMain, "👁  ESP", 18, 14, 200, 20, 13, Theme.Text)
 
-local espStatus =
-    createLabel(
-        espMain,
-        "Desactivado",
-        18,
-        38,
-        200,
-        17,
-        8,
-        Theme.SubText
-    )
+local espStatus = createLabel(espMain, "Desactivado", 18, 40, 200, 17, 9, Theme.SubText)
 
-local espToggle =
-    createToggle(
-        espMain,
-        0,
-        "",
-        "",
-        false,
-        function(on)
+local espStatusDot = Instance.new("Frame")
+espStatusDot.Size = UDim2.fromOffset(7, 7)
+espStatusDot.Position = UDim2.fromOffset(18, 66)
+espStatusDot.BackgroundColor3 = Theme.Muted
+espStatusDot.BorderSizePixel = 0
+espStatusDot.Parent = espMain
 
-            espEnabled =
-                on
+addCorner(espStatusDot, 4)
 
-            espStatus.Text =
-                on
-                and "Activado"
-                or "Desactivado"
+local espStatusText = Instance.new("TextLabel")
+espStatusText.Size = UDim2.new(0, 200, 0, 14)
+espStatusText.Position = UDim2.fromOffset(30, 64)
+espStatusText.BackgroundTransparency = 1
+espStatusText.Text = "Listo para activar"
+espStatusText.TextColor3 = Theme.Muted
+espStatusText.Font = Enum.Font.GothamBold
+espStatusText.TextSize = 8
+espStatusText.TextXAlignment = Enum.TextXAlignment.Left
+espStatusText.Parent = espMain
 
-            if not on then
+local espToggle = createToggle(espMain, 0, "", "", false, function(on)
+    espEnabled = on
+    espStatus.Text = on and "Activado" or "Desactivado"
+    espStatusDot.BackgroundColor3 = on and Theme.Green or Theme.Muted
+    espStatusText.Text = on and "Funcionando" or "Listo para activar"
+    espStatusText.TextColor3 = on and Theme.Green or Theme.Muted
 
-                for plr in pairs(
-                    ESP
-                ) do
-
-                    if ESP[plr] then
-
-                        if ESP[plr].highlight then
-                            ESP[plr].highlight:Destroy()
-                        end
-
-                        if ESP[plr].billboard then
-                            ESP[plr].billboard:Destroy()
-                        end
-
-                        ESP[plr] = nil
-
-                    end
-
-                end
+    if not on then
+        for plr in pairs(ESP) do
+            if ESP[plr] then
+                if ESP[plr].highlight then ESP[plr].highlight:Destroy() end
+                if ESP[plr].billboard then ESP[plr].billboard:Destroy() end
+                ESP[plr] = nil
             end
-
         end
-    )
-
-espToggle.Button.Position =
-    UDim2.new(
-        1,
-        -58,
-        0,
-        30
-    )
-
-local espOptions =
-    createCard(
-        espPage,
-        230
-    )
-
-createSection(
-    espOptions,
-    "ELEMENTOS"
-)
-
-createToggle(
-    espOptions,
-    24,
-    "🏷  Nombres",
-    "Muestra el nombre",
-    true,
-    function(on)
-        espNames = on
     end
-)
+end)
 
-createToggle(
-    espOptions,
-    70,
-    "❤️  Vida",
-    "Muestra la vida",
-    true,
-    function(on)
-        espHealth = on
-    end
-)
+espToggle.Button.Position = UDim2.new(1, -60, 0, 32)
 
-createToggle(
-    espOptions,
-    116,
-    "📏  Distancia",
-    "Muestra la distancia",
-    true,
-    function(on)
-        espDistance = on
-    end
-)
+local espOptions = createCard(espPage, 235)
 
-createToggle(
-    espOptions,
-    162,
-    "⬜  Boxes",
-    "Resalta al jugador",
-    true,
-    function(on)
-        espBoxes = on
-    end
-)
+createSection(espOptions, "ELEMENTOS")
 
-local espRange =
-    createCard(
-        espPage,
-        90
-    )
+createToggle(espOptions, 24, "🏷  Nombres", "Muestra el nombre", true, function(on) espNames = on end)
+createToggle(espOptions, 72, "❤️  Vida", "Muestra la vida", true, function(on) espHealth = on end)
+createToggle(espOptions, 120, "📏  Distancia", "Muestra la distancia", true, function(on) espDistance = on end)
+createToggle(espOptions, 168, "⬜  Boxes", "Resalta al jugador", true, function(on) espBoxes = on end)
 
-createSection(
-    espRange,
-    "ALCANCE"
-)
+local espRange = createCard(espPage, 92)
 
-createSlider(
-    espRange,
-    25,
-    "Distancia ESP  ",
-    100,
-    2000,
-    1000,
-    function(v)
-        espMaxDistance = v
-    end
-)
+createSection(espRange, "ALCANCE")
+
+createSlider(espRange, 25, "Distancia ESP  ", 100, 2000, 1000, function(v)
+    espMaxDistance = v
+end)
 
 --==================================================
 -- MENU PAGE
 --==================================================
 
-local menuControls =
-    createCard(
-        menuPage,
-        150
-    )
+local menuControls = createCard(menuPage, 155)
 
-createSection(
-    menuControls,
-    "CONTROLES"
-)
+createSection(menuControls, "CONTROLES")
 
-local menuKeyValue =
-    Instance.new("TextLabel")
+local menuKeyValue = Instance.new("TextLabel")
+menuKeyValue.Size = UDim2.fromOffset(74, 26)
+menuKeyValue.Position = UDim2.new(1, -86, 0, 30)
+menuKeyValue.BackgroundColor3 = Theme.Track
+menuKeyValue.Text = "X"
+menuKeyValue.TextColor3 = Theme.AccentLight
+menuKeyValue.Font = Enum.Font.GothamBold
+menuKeyValue.TextSize = 10
+menuKeyValue.Parent = menuControls
 
-menuKeyValue.Size =
-    UDim2.fromOffset(
-        70,
-        24
-    )
+addCorner(menuKeyValue, 7)
+addStroke(menuKeyValue, 0.4, 1, Theme.Stroke)
 
-menuKeyValue.Position =
-    UDim2.new(
-        1,
-        -82,
-        0,
-        30
-    )
-
-menuKeyValue.BackgroundColor3 =
-    Theme.Track
-
-menuKeyValue.Text =
-    "X"
-
-menuKeyValue.TextColor3 =
-    Theme.AccentLight
-
-menuKeyValue.Font =
-    Enum.Font.GothamBold
-
-menuKeyValue.TextSize = 9
-menuKeyValue.Parent =
-    menuControls
-
-addCorner(
-    menuKeyValue,
-    6
-)
-
-local menuKeyButton =
-    Instance.new("TextButton")
-
-menuKeyButton.Size =
-    UDim2.new(
-        1,
-        -20,
-        0,
-        46
-    )
-
-menuKeyButton.Position =
-    UDim2.fromOffset(
-        10,
-        20
-    )
-
+local menuKeyButton = Instance.new("TextButton")
+menuKeyButton.Size = UDim2.new(1, -20, 0, 48)
+menuKeyButton.Position = UDim2.fromOffset(10, 20)
 menuKeyButton.BackgroundTransparency = 1
 menuKeyButton.Text = ""
-menuKeyButton.Parent =
-    menuControls
+menuKeyButton.Parent = menuControls
 
-createLabel(
-    menuKeyButton,
-    "⌨  Tecla del menú",
-    0,
-    0,
-    250,
-    20,
-    10,
-    Theme.Text
-)
+createLabel(menuKeyButton, "⌨  Tecla del menú", 0, 2, 250, 20, 11, Theme.Text)
+createLabel(menuKeyButton, "Pulsa para cambiarla", 0, 23, 250, 15, 8, Theme.SubText)
 
-createLabel(
-    menuKeyButton,
-    "Pulsa para cambiarla",
-    0,
-    21,
-    250,
-    15,
-    8,
-    Theme.SubText
-)
+menuKeyButton.MouseButton1Click:Connect(function()
+    waitingMenuKey = true
+    waitingTriggerKey = false
+    menuKeyValue.Text = "..."
+end)
 
-menuKeyButton.MouseButton1Click:Connect(
-    function()
-
-        waitingMenuKey =
-            true
-
-        waitingTriggerKey =
-            false
-
-        menuKeyValue.Text =
-            "..."
-
+createToggle(menuControls, 80, "📺  Modo Streamer", "Oculta el panel", false, function(on)
+    streamerMode = on
+    if on then
+        menu.Visible = false
+        floatingButton.Visible = false
     end
-)
+end)
 
-createToggle(
-    menuControls,
-    76,
-    "📺  Modo Streamer",
-    "Oculta el panel",
-    false,
-    function(on)
+local closeCard = createCard(menuPage, 90)
 
-        streamerMode =
-            on
+createSection(closeCard, "PANEL")
 
-        if on then
-
-            menu.Visible =
-                false
-
-            floatingButton.Visible =
-                false
-
-        end
-
-    end
-)
-
-local closeCard =
-    createCard(
-        menuPage,
-        85
-    )
-
-createSection(
-    closeCard,
-    "PANEL"
-)
-
-local closeForever =
-    Instance.new("TextButton")
-
-closeForever.Size =
-    UDim2.new(
-        1,
-        -20,
-        0,
-        45
-    )
-
-closeForever.Position =
-    UDim2.fromOffset(
-        10,
-        25
-    )
-
-closeForever.BackgroundColor3 =
-    Theme.Element
-
+local closeForever = Instance.new("TextButton")
+closeForever.Size = UDim2.new(1, -20, 0, 46)
+closeForever.Position = UDim2.fromOffset(10, 26)
+closeForever.BackgroundColor3 = Theme.Element
 closeForever.BorderSizePixel = 0
-
-closeForever.Text =
-    "🔒  Cerrar para siempre"
-
-closeForever.TextColor3 =
-    Theme.Text
-
-closeForever.Font =
-    Enum.Font.GothamMedium
-
-closeForever.TextSize = 10
-
+closeForever.Text = "🔒  Cerrar para siempre"
+closeForever.TextColor3 = Theme.Text
+closeForever.Font = Enum.Font.GothamMedium
+closeForever.TextSize = 11
 closeForever.AutoButtonColor = false
+closeForever.Parent = closeCard
 
-closeForever.Parent =
-    closeCard
+addCorner(closeForever, 11)
+addStroke(closeForever, 0.5, 1, Theme.Stroke)
+addGradient(closeForever, Theme.Hover, Theme.Element, 90)
 
-addCorner(
-    closeForever,
-    9
-)
+closeForever.MouseEnter:Connect(function()
+    animate(closeForever, 0.15, {
+        BackgroundColor3 = Theme.AccentDark,
+        TextColor3 = Theme.White
+    })
+end)
+
+closeForever.MouseLeave:Connect(function()
+    animate(closeForever, 0.15, {
+        BackgroundColor3 = Theme.Element,
+        TextColor3 = Theme.Text
+    })
+end)
 
 --==================================================
 -- GRAPHICS PAGE
 --==================================================
 
-local graphicsMain =
-    createCard(
-        graphicsPage,
-        105
-    )
+local graphicsMain = createCard(graphicsPage, 108)
 
-createLabel(
-    graphicsMain,
-    "💀  MODO ULTRA FEO",
-    18,
-    12,
-    300,
-    20,
-    12,
-    Theme.Text
-)
+createLabel(graphicsMain, "💀  MODO ULTRA FEO", 18, 14, 300, 20, 13, Theme.Text)
+createLabel(graphicsMain, "Reduce la calidad visual para priorizar FPS.", 18, 40, 300, 17, 9, Theme.SubText)
 
-createLabel(
-    graphicsMain,
-    "Reduce la calidad visual para priorizar FPS.",
-    18,
-    38,
-    300,
-    17,
-    8,
-    Theme.SubText
-)
-
-local graphicsStatus =
-    createLabel(
-        graphicsMain,
-        "Desactivado",
-        18,
-        60,
-        200,
-        16,
-        8,
-        Theme.SubText
-    )
+local graphicsStatus = createLabel(graphicsMain, "Desactivado", 18, 62, 200, 16, 9, Theme.SubText)
 
 --==================================================
 -- GRÁFICOS SYSTEM
 --==================================================
 
 local function saveGraphics(obj, property)
-
-    if not savedGraphics[obj] then
-        savedGraphics[obj] = {}
-    end
-
+    if not savedGraphics[obj] then savedGraphics[obj] = {} end
     if savedGraphics[obj][property] == nil then
-
-        pcall(function()
-
-            savedGraphics[obj][property] =
-                obj[property]
-
-        end)
-
+        pcall(function() savedGraphics[obj][property] = obj[property] end)
     end
 end
 
-local function setGraphicsProperty(
-    obj,
-    property,
-    value
-)
-
+local function setGraphicsProperty(obj, property, value)
     pcall(function()
-
-        saveGraphics(
-            obj,
-            property
-        )
-
-        obj[property] =
-            value
-
+        saveGraphics(obj, property)
+        obj[property] = value
     end)
 end
 
 local function makeObjectUgly(obj)
-
-    if obj:IsA("Decal")
-        or obj:IsA("Texture") then
-
-        setGraphicsProperty(
-            obj,
-            "Transparency",
-            1
-        )
-
+    if obj:IsA("Decal") or obj:IsA("Texture") then
+        setGraphicsProperty(obj, "Transparency", 1)
         return
     end
-
-    if obj:IsA(
-        "SurfaceAppearance"
-    ) then
-
-        setGraphicsProperty(
-            obj,
-            "Parent",
-            nil
-        )
-
+    if obj:IsA("SurfaceAppearance") then
+        setGraphicsProperty(obj, "Parent", nil)
         return
     end
-
-    if obj:IsA(
-        "ParticleEmitter"
-    )
-        or obj:IsA("Trail")
-        or obj:IsA("Beam")
-        or obj:IsA("Fire")
-        or obj:IsA("Smoke")
-        or obj:IsA("Sparkles") then
-
-        setGraphicsProperty(
-            obj,
-            "Enabled",
-            false
-        )
-
+    if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") then
+        setGraphicsProperty(obj, "Enabled", false)
         return
     end
-
-    if obj:IsA("PointLight")
-        or obj:IsA("SpotLight")
-        or obj:IsA("SurfaceLight") then
-
-        setGraphicsProperty(
-            obj,
-            "Enabled",
-            false
-        )
-
+    if obj:IsA("PointLight") or obj:IsA("SpotLight") or obj:IsA("SurfaceLight") then
+        setGraphicsProperty(obj, "Enabled", false)
         return
     end
-
-    if obj:IsA("BloomEffect")
-        or obj:IsA("BlurEffect")
-        or obj:IsA("ColorCorrectionEffect")
-        or obj:IsA("DepthOfFieldEffect")
-        or obj:IsA("SunRaysEffect") then
-
-        setGraphicsProperty(
-            obj,
-            "Enabled",
-            false
-        )
-
+    if obj:IsA("BloomEffect") or obj:IsA("BlurEffect") or obj:IsA("ColorCorrectionEffect") or obj:IsA("DepthOfFieldEffect") or obj:IsA("SunRaysEffect") then
+        setGraphicsProperty(obj, "Enabled", false)
         return
     end
-
     if obj:IsA("Atmosphere") then
-
-        setGraphicsProperty(
-            obj,
-            "Density",
-            0
-        )
-
-        setGraphicsProperty(
-            obj,
-            "Haze",
-            0
-        )
-
-        setGraphicsProperty(
-            obj,
-            "Glare",
-            0
-        )
-
+        setGraphicsProperty(obj, "Density", 0)
+        setGraphicsProperty(obj, "Haze", 0)
+        setGraphicsProperty(obj, "Glare", 0)
         return
     end
-
     if obj:IsA("BasePart") then
-
-        setGraphicsProperty(
-            obj,
-            "CastShadow",
-            false
-        )
-
-        setGraphicsProperty(
-            obj,
-            "Material",
-            Enum.Material.SmoothPlastic
-        )
-
-        setGraphicsProperty(
-            obj,
-            "Reflectance",
-            0
-        )
-
+        setGraphicsProperty(obj, "CastShadow", false)
+        setGraphicsProperty(obj, "Material", Enum.Material.SmoothPlastic)
+        setGraphicsProperty(obj, "Reflectance", 0)
         return
     end
 end
 
 local function enableLowGraphics()
-
-    if lowGraphicsEnabled then
-        return
-    end
-
-    table.clear(
-        savedGraphics
-    )
-
-    setGraphicsProperty(
-        Lighting,
-        "GlobalShadows",
-        false
-    )
-
-    setGraphicsProperty(
-        Lighting,
-        "EnvironmentDiffuseScale",
-        0
-    )
-
-    setGraphicsProperty(
-        Lighting,
-        "EnvironmentSpecularScale",
-        0
-    )
-
-    for _, obj in ipairs(
-        workspace:GetDescendants()
-    ) do
-
-        makeObjectUgly(obj)
-
-    end
-
-    for _, obj in ipairs(
-        Lighting:GetDescendants()
-    ) do
-
-        makeObjectUgly(obj)
-
-    end
-
-    lowGraphicsEnabled =
-        true
-
-    graphicsStatus.Text =
-        "Activado • rendimiento prioritario"
-
-    playToggleSound(
-        true
-    )
+    if lowGraphicsEnabled then return end
+    table.clear(savedGraphics)
+    setGraphicsProperty(Lighting, "GlobalShadows", false)
+    setGraphicsProperty(Lighting, "EnvironmentDiffuseScale", 0)
+    setGraphicsProperty(Lighting, "EnvironmentSpecularScale", 0)
+    for _, obj in ipairs(workspace:GetDescendants()) do makeObjectUgly(obj) end
+    for _, obj in ipairs(Lighting:GetDescendants()) do makeObjectUgly(obj) end
+    lowGraphicsEnabled = true
+    graphicsStatus.Text = "Activado • rendimiento prioritario"
+    playToggleSound(true)
 end
 
 local function disableLowGraphics()
-
-    if not lowGraphicsEnabled then
-        return
-    end
-
-    for obj, properties in pairs(
-        savedGraphics
-    ) do
-
+    if not lowGraphicsEnabled then return end
+    for obj, properties in pairs(savedGraphics) do
         if obj then
-
-            for property, oldValue in pairs(
-                properties
-            ) do
-
+            for property, oldValue in pairs(properties) do
                 pcall(function()
-
-                    if property ==
-                        "Parent" then
-
-                        if oldValue then
-                            obj.Parent =
-                                oldValue
-                        end
-
+                    if property == "Parent" then
+                        if oldValue then obj.Parent = oldValue end
                     else
-
-                        obj[property] =
-                            oldValue
-
+                        obj[property] = oldValue
                     end
-
                 end)
-
             end
-
         end
     end
-
-    table.clear(
-        savedGraphics
-    )
-
-    lowGraphicsEnabled =
-        false
-
-    graphicsStatus.Text =
-        "Desactivado"
-
-    playToggleSound(
-        false
-    )
+    table.clear(savedGraphics)
+    lowGraphicsEnabled = false
+    graphicsStatus.Text = "Desactivado"
+    playToggleSound(false)
 end
 
-local graphicsToggle =
-    createToggle(
-        graphicsMain,
-        0,
-        "",
-        "",
-        false,
-        function(on)
+local graphicsToggle = createToggle(graphicsMain, 0, "", "", false, function(on)
+    if on then enableLowGraphics() else disableLowGraphics() end
+end)
 
-            if on then
+graphicsToggle.Button.Position = UDim2.new(1, -60, 0, 42)
 
-                enableLowGraphics()
+local graphicsInfo = createCard(graphicsPage, 180)
 
-            else
+createSection(graphicsInfo, "CAMBIOS")
 
-                disableLowGraphics()
-
-            end
-
-        end
-    )
-
-graphicsToggle.Button.Position =
-    UDim2.new(
-        1,
-        -58,
-        0,
-        40
-    )
-
-local graphicsInfo =
-    createCard(
-        graphicsPage,
-        175
-    )
-
-createSection(
-    graphicsInfo,
-    "CAMBIOS"
-)
-
-createLabel(
-    graphicsInfo,
+local changes = {
     "✓ Sombras desactivadas",
-    18,
-    32,
-    300,
-    17,
-    9,
-    Theme.SubText
-)
-
-createLabel(
-    graphicsInfo,
     "✓ Texturas ocultas",
-    18,
-    53,
-    300,
-    17,
-    9,
-    Theme.SubText
-)
-
-createLabel(
-    graphicsInfo,
     "✓ SurfaceAppearance eliminado temporalmente",
-    18,
-    74,
-    400,
-    17,
-    9,
-    Theme.SubText
-)
-
-createLabel(
-    graphicsInfo,
     "✓ Partículas, luces y efectos desactivados",
-    18,
-    95,
-    400,
-    17,
-    9,
-    Theme.SubText
-)
-
-createLabel(
-    graphicsInfo,
     "✓ Materiales simplificados",
-    18,
-    116,
-    300,
-    17,
-    9,
-    Theme.SubText
-)
+    "✓ Reflejos eliminados"
+}
 
-createLabel(
-    graphicsInfo,
-    "✓ Reflejos eliminados",
-    18,
-    137,
-    300,
-    17,
-    9,
-    Theme.SubText
-)
+for i, change in ipairs(changes) do
+    createLabel(graphicsInfo, change, 18, 28 + (i - 1) * 21, 400, 17, 9, Theme.SubText)
+end
 
 --==================================================
 -- NUEVOS OBJETOS
 --==================================================
 
-workspace.DescendantAdded:Connect(
-    function(obj)
+workspace.DescendantAdded:Connect(function(obj)
+    if not lowGraphicsEnabled then return end
+    task.defer(function()
+        if lowGraphicsEnabled and obj.Parent then makeObjectUgly(obj) end
+    end)
+end)
 
-        if not lowGraphicsEnabled then
-            return
-        end
-
-        task.defer(function()
-
-            if lowGraphicsEnabled
-                and obj.Parent then
-
-                makeObjectUgly(obj)
-
-            end
-
-        end)
-
-    end
-)
-
-Lighting.DescendantAdded:Connect(
-    function(obj)
-
-        if not lowGraphicsEnabled then
-            return
-        end
-
-        task.defer(function()
-
-            if lowGraphicsEnabled
-                and obj.Parent then
-
-                makeObjectUgly(obj)
-
-            end
-
-        end)
-
-    end
-)
+Lighting.DescendantAdded:Connect(function(obj)
+    if not lowGraphicsEnabled then return end
+    task.defer(function()
+        if lowGraphicsEnabled and obj.Parent then makeObjectUgly(obj) end
+    end)
+end)
 
 --==================================================
 -- TARGET FILTER
 --==================================================
 
 local function isFriend(plr)
-
-    if not ignoreFriends
-        or not plr then
-
-        return false
-    end
-
-    local ok, result =
-        pcall(function()
-
-            return LocalPlayer:IsFriendsWith(
-                plr.UserId
-            )
-
-        end)
-
+    if not ignoreFriends or not plr then return false end
+    local ok, result = pcall(function() return LocalPlayer:IsFriendsWith(plr.UserId) end)
     return ok and result == true
 end
 
 local function isSameTeam(plr)
-
-    if not ignoreTeam
-        or not plr
-        or plr == LocalPlayer then
-
-        return false
+    if not ignoreTeam or not plr or plr == LocalPlayer then return false end
+    if LocalPlayer.Team and plr.Team then
+        return LocalPlayer.Team == plr.Team
     end
-
-    if LocalPlayer.Team
-        and plr.Team then
-
-        return LocalPlayer.Team ==
-            plr.Team
-    end
-
     return false
 end
 
 local function shouldTarget(plr)
-
-    if not plr
-        or plr == LocalPlayer then
-
-        return false
-    end
-
-    if isFriend(plr) then
-        return false
-    end
-
-    if isSameTeam(plr) then
-        return false
-    end
-
+    if not plr or plr == LocalPlayer then return false end
+    if isFriend(plr) then return false end
+    if isSameTeam(plr) then return false end
     return true
 end
 
@@ -1912,921 +1207,355 @@ end
 --==================================================
 
 local function isEnemyUnderCrosshair()
-
     local function checkHit(hit)
-
-        if not hit then
-            return false
-        end
-
-        local character =
-            hit:FindFirstAncestorOfClass(
-                "Model"
-            )
-
-        if not character then
-            return false
-        end
-
-        local humanoid =
-            character:FindFirstChildOfClass(
-                "Humanoid"
-            )
-
-        if not humanoid
-            or humanoid.Health <= 0 then
-
-            return false
-        end
-
-        local player =
-            Players:GetPlayerFromCharacter(
-                character
-            )
-
-        if not shouldTarget(player) then
-            return false
-        end
-
+        if not hit then return false end
+        local character = hit:FindFirstAncestorOfClass("Model")
+        if not character then return false end
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        if not humanoid or humanoid.Health <= 0 then return false end
+        local player = Players:GetPlayerFromCharacter(character)
+        if not shouldTarget(player) then return false end
         return true
     end
 
-    local camera =
-        workspace.CurrentCamera
-
+    local camera = workspace.CurrentCamera
     if camera then
-
-        local viewport =
-            camera.ViewportSize
-
-        local ray =
-            camera:ViewportPointToRay(
-                viewport.X / 2,
-                viewport.Y / 2
-            )
-
-        local params =
-            RaycastParams.new()
-
-        params.FilterType =
-            Enum.RaycastFilterType.Exclude
-
-        if Character then
-
-            params.FilterDescendantsInstances =
-                {Character}
-
-        end
-
+        local viewport = camera.ViewportSize
+        local ray = camera:ViewportPointToRay(viewport.X / 2, viewport.Y / 2)
+        local params = RaycastParams.new()
+        params.FilterType = Enum.RaycastFilterType.Exclude
+        if Character then params.FilterDescendantsInstances = {Character} end
         params.IgnoreWater = true
-
-        local result =
-            workspace:Raycast(
-                ray.Origin,
-                ray.Direction * 2000,
-                params
-            )
-
-        if result
-            and checkHit(
-                result.Instance
-            ) then
-
-            return true
-
-        end
-
+        local result = workspace:Raycast(ray.Origin, ray.Direction * 2000, params)
+        if result and checkHit(result.Instance) then return true end
     end
 
-    if checkHit(
-        Mouse.Target
-    ) then
-
-        return true
-
-    end
+    if checkHit(Mouse.Target) then return true end
 
     return false
 end
 
 local function getEffectiveDelay()
-
-    local p =
-        math.clamp(
-            triggerPrecision,
-            1,
-            50
-        )
-
-    local factor =
-        1.85
-        - (
-            (p - 1)
-            / 49
-        ) * 1.70
-
-    return math.max(
-        0.03,
-        triggerbotDelay * factor
-    )
+    local p = math.clamp(triggerPrecision, 1, 50)
+    local factor = 1.85 - ((p - 1) / 49) * 1.70
+    return math.max(0.03, triggerbotDelay * factor)
 end
 
 local function clickMouse()
-
     if mouse1press then
-
         mouse1press()
-
         task.wait(0.012)
-
-        if mouse1release then
-            mouse1release()
-        end
-
+        if mouse1release then mouse1release() end
         return
     end
-
     pcall(function()
-
-        local VIM =
-            game:GetService(
-                "VirtualInputManager"
-            )
-
-        VIM:SendMouseButtonEvent(
-            0,
-            0,
-            0,
-            true,
-            game,
-            0
-        )
-
+        local VIM = game:GetService("VirtualInputManager")
+        VIM:SendMouseButtonEvent(0, 0, 0, true, game, 0)
         task.wait(0.012)
-
-        VIM:SendMouseButtonEvent(
-            0,
-            0,
-            0,
-            false,
-            game,
-            0
-        )
-
+        VIM:SendMouseButtonEvent(0, 0, 0, false, game, 0)
     end)
 end
 
-RunService.RenderStepped:Connect(
-    function()
-
-        if not triggerbotEnabled then
-            return
-        end
-
-        local now =
-            os.clock()
-
-        if now - lastTriggerShot
-            < getEffectiveDelay() then
-
-            return
-        end
-
-        if isEnemyUnderCrosshair() then
-
-            lastTriggerShot =
-                now
-
-            clickMouse()
-
-        end
-
+RunService.RenderStepped:Connect(function()
+    if not triggerbotEnabled then return end
+    local now = os.clock()
+    if now - lastTriggerShot < getEffectiveDelay() then return end
+    if isEnemyUnderCrosshair() then
+        lastTriggerShot = now
+        clickMouse()
     end
-)
+end)
 
 --==================================================
 -- ESP
 --==================================================
 
 local function removeESP(plr)
-
-    local data =
-        ESP[plr]
-
-    if not data then
-        return
-    end
-
-    if data.highlight then
-        data.highlight:Destroy()
-    end
-
-    if data.billboard then
-        data.billboard:Destroy()
-    end
-
+    local data = ESP[plr]
+    if not data then return end
+    if data.highlight then data.highlight:Destroy() end
+    if data.billboard then data.billboard:Destroy() end
     ESP[plr] = nil
 end
 
 local function createESP(plr)
-
-    if not shouldTarget(plr) then
-        return
-    end
-
+    if not shouldTarget(plr) then return end
     removeESP(plr)
+    local character = plr.Character
+    if not character then return end
+    local root = character:FindFirstChild("HumanoidRootPart")
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not root or not humanoid then return end
 
-    local character =
-        plr.Character
-
-    if not character then
-        return
-    end
-
-    local root =
-        character:FindFirstChild(
-            "HumanoidRootPart"
-        )
-
-    local humanoid =
-        character:FindFirstChildOfClass(
-            "Humanoid"
-        )
-
-    if not root
-        or not humanoid then
-
-        return
-    end
-
-    local data = {
-        character = character,
-        root = root,
-        humanoid = humanoid
-    }
+    local data = { character = character, root = root, humanoid = humanoid }
 
     if espBoxes then
-
-        local highlight =
-            Instance.new("Highlight")
-
-        highlight.Adornee =
-            character
-
-        highlight.FillColor =
-            Theme.Accent
-
-        highlight.OutlineColor =
-            Theme.Accent
-
-        highlight.FillTransparency =
-            0.85
-
-        highlight.OutlineTransparency =
-            0.1
-
-        highlight.DepthMode =
-            Enum.HighlightDepthMode.AlwaysOnTop
-
-        highlight.Parent =
-            gui
-
-        data.highlight =
-            highlight
-
+        local highlight = Instance.new("Highlight")
+        highlight.Adornee = character
+        highlight.FillColor = Theme.Accent
+        highlight.OutlineColor = Theme.Accent
+        highlight.FillTransparency = 0.85
+        highlight.OutlineTransparency = 0.1
+        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        highlight.Parent = gui
+        data.highlight = highlight
     end
 
-    local billboard =
-        Instance.new(
-            "BillboardGui"
-        )
+    local billboard = Instance.new("BillboardGui")
+    billboard.Adornee = root
+    billboard.Size = UDim2.fromOffset(160, 55)
+    billboard.StudsOffset = Vector3.new(0, 3, 0)
+    billboard.AlwaysOnTop = true
+    billboard.Parent = gui
 
-    billboard.Adornee =
-        root
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.fromScale(1, 1)
+    label.BackgroundTransparency = 1
+    label.TextColor3 = Theme.White
+    label.TextStrokeTransparency = 0.4
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 11
+    label.Parent = billboard
 
-    billboard.Size =
-        UDim2.fromOffset(
-            160,
-            55
-        )
-
-    billboard.StudsOffset =
-        Vector3.new(
-            0,
-            3,
-            0
-        )
-
-    billboard.AlwaysOnTop =
-        true
-
-    billboard.Parent =
-        gui
-
-    local label =
-        Instance.new(
-            "TextLabel"
-        )
-
-    label.Size =
-        UDim2.fromScale(
-            1,
-            1
-        )
-
-    label.BackgroundTransparency =
-        1
-
-    label.TextColor3 =
-        Theme.White
-
-    label.TextStrokeTransparency =
-        0.4
-
-    label.Font =
-        Enum.Font.GothamBold
-
-    label.TextSize =
-        11
-
-    label.Parent =
-        billboard
-
-    data.billboard =
-        billboard
-
-    data.label =
-        label
-
-    ESP[plr] =
-        data
+    data.billboard = billboard
+    data.label = label
+    ESP[plr] = data
 end
 
 local function updateESP()
-
-    if not espEnabled then
-        return
-    end
-
-    for _, plr in ipairs(
-        Players:GetPlayers()
-    ) do
-
+    if not espEnabled then return end
+    for _, plr in ipairs(Players:GetPlayers()) do
         if not shouldTarget(plr) then
-
             removeESP(plr)
-
         else
-
-            local character =
-                plr.Character
-
+            local character = plr.Character
             if character then
-
-                local root =
-                    character:FindFirstChild(
-                        "HumanoidRootPart"
-                    )
-
-                local humanoid =
-                    character:FindFirstChildOfClass(
-                        "Humanoid"
-                    )
-
-                if root
-                    and humanoid
-                    and humanoid.Health > 0 then
-
-                    local data =
-                        ESP[plr]
-
-                    if not data
-                        or data.character ~= character then
-
+                local root = character:FindFirstChild("HumanoidRootPart")
+                local humanoid = character:FindFirstChildOfClass("Humanoid")
+                if root and humanoid and humanoid.Health > 0 then
+                    local data = ESP[plr]
+                    if not data or data.character ~= character then
                         createESP(plr)
-
-                        data =
-                            ESP[plr]
-
+                        data = ESP[plr]
                     end
-
                     if data then
-
-                        local distance =
-                            Root
-                            and (
-                                Root.Position
-                                - root.Position
-                            ).Magnitude
-                            or 0
-
-                        local visible =
-                            distance <=
-                            espMaxDistance
-
+                        local distance = Root and (Root.Position - root.Position).Magnitude or 0
+                        local visible = distance <= espMaxDistance
                         if data.highlight then
-
-                            data.highlight.Enabled =
-                                visible
-                                and espBoxes
-
+                            data.highlight.Enabled = visible and espBoxes
                         end
-
                         if data.billboard then
-
-                            data.billboard.Enabled =
-                                visible
-
+                            data.billboard.Enabled = visible
                         end
-
-                        if data.label
-                            and visible then
-
+                        if data.label and visible then
                             local text = ""
-
-                            if espNames then
-
-                                text =
-                                    plr.Name
-
-                            end
-
+                            if espNames then text = plr.Name end
                             if espHealth then
-
-                                text =
-                                    text
-                                    .. (
-                                        text ~= ""
-                                        and "\n"
-                                        or ""
-                                    )
-                                    .. "❤️ "
-                                    .. math.floor(
-                                        humanoid.Health
-                                    )
-
+                                text = text .. (text ~= "" and "\n" or "") .. "❤️ " .. math.floor(humanoid.Health)
                             end
-
                             if espDistance then
-
-                                text =
-                                    text
-                                    .. (
-                                        text ~= ""
-                                        and "\n"
-                                        or ""
-                                    )
-                                    .. "📏 "
-                                    .. math.floor(
-                                        distance
-                                    )
-
+                                text = text .. (text ~= "" and "\n" or "") .. "📏 " .. math.floor(distance)
                             end
-
-                            data.label.Text =
-                                text
-
+                            data.label.Text = text
                         end
                     end
-
                 else
-
                     removeESP(plr)
-
                 end
-
             else
-
                 removeESP(plr)
-
             end
         end
     end
 end
 
 task.spawn(function()
-
     while gui.Parent do
-
-        if espEnabled then
-            updateESP()
-        end
-
+        if espEnabled then updateESP() end
         task.wait(0.4)
-
     end
-
 end)
 
 --==================================================
 -- FLOATING BUTTON
 --==================================================
 
-local floatingButton =
-    Instance.new("TextButton")
-
-floatingButton.Size =
-    UDim2.fromOffset(
-        52,
-        52
-    )
-
-floatingButton.Position =
-    UDim2.fromOffset(
-        25,
-        280
-    )
-
-floatingButton.BackgroundColor3 =
-    Theme.Accent
-
+local floatingButton = Instance.new("TextButton")
+floatingButton.Name = "FloatingButton"
+floatingButton.Size = UDim2.fromOffset(54, 54)
+floatingButton.Position = UDim2.fromOffset(25, 280)
+floatingButton.BackgroundColor3 = Theme.Accent
 floatingButton.BorderSizePixel = 0
+floatingButton.Text = "😈"
+floatingButton.TextSize = 22
+floatingButton.Visible = false
+floatingButton.Parent = gui
 
-floatingButton.Text =
-    "😈"
+addCorner(floatingButton, 27)
+addStroke(floatingButton, 0.2, 1.5, Theme.AccentDark)
+addGradient(floatingButton, Theme.AccentLight, Theme.AccentDark, 115)
 
-floatingButton.TextSize = 19
+floatingButton.MouseEnter:Connect(function()
+    animate(floatingButton, 0.15, { Size = UDim2.fromOffset(58, 58) }, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+end)
 
-floatingButton.Visible =
-    false
-
-floatingButton.Parent =
-    gui
-
-addCorner(
-    floatingButton,
-    26
-)
-
-addStroke(
-    floatingButton,
-    0.3
-)
+floatingButton.MouseLeave:Connect(function()
+    animate(floatingButton, 0.15, { Size = UDim2.fromOffset(54, 54) })
+end)
 
 --==================================================
 -- MENU CONTROL
 --==================================================
 
-local function setMenuVisible(
-    visible,
-    showFloating
-)
-
-    if menuClosedForever then
-        return
-    end
-
+local function setMenuVisible(visible, showFloating)
+    if menuClosedForever then return end
     if streamerMode then
-
         menu.Visible = false
         floatingButton.Visible = false
-
         return
     end
-
-    menu.Visible =
-        visible
-
-    floatingButton.Visible =
-        not visible
-        and showFloating == true
+    menu.Visible = visible
+    floatingButton.Visible = not visible and showFloating == true
 end
 
-closeButton.MouseButton1Click:Connect(
-    function()
+closeButton.MouseButton1Click:Connect(function()
+    setMenuVisible(false, true)
+end)
 
-        setMenuVisible(
-            false,
-            true
-        )
+floatingButton.MouseButton1Click:Connect(function()
+    setMenuVisible(true, false)
+end)
 
-    end
-)
-
-floatingButton.MouseButton1Click:Connect(
-    function()
-
-        setMenuVisible(
-            true,
-            false
-        )
-
-    end
-)
-
-closeForever.MouseButton1Click:Connect(
-    function()
-
-        menuClosedForever =
-            true
-
-        triggerbotEnabled =
-            false
-
-        espEnabled =
-            false
-
-        if lowGraphicsEnabled then
-            disableLowGraphics()
-        end
-
-        for plr in pairs(ESP) do
-            removeESP(plr)
-        end
-
-        gui:Destroy()
-
-    end
-)
+closeForever.MouseButton1Click:Connect(function()
+    menuClosedForever = true
+    triggerbotEnabled = false
+    espEnabled = false
+    if lowGraphicsEnabled then disableLowGraphics() end
+    for plr in pairs(ESP) do removeESP(plr) end
+    gui:Destroy()
+end)
 
 --==================================================
 -- PAGE SWITCH
 --==================================================
 
-local function showPage(
-    page,
-    name,
-    title,
-    subtitle
-)
-
+local function showPage(page, name, title, subtitle)
     for _, p in ipairs(pages) do
-        p.Visible = false
+        p.Visible = (p == page)
     end
 
-    page.Visible = true
+    pageTitle.Text = title
+    pageSubtitle.Text = subtitle
 
-    pageTitle.Text =
-        title
-
-    pageSubtitle.Text =
-        subtitle
-
-    for navName, data in pairs(
-        navButtons
-    ) do
-
-        local selected =
-            navName == name
-
-        data.Button.BackgroundColor3 =
-            selected
-            and Theme.Element
-            or Theme.Sidebar
-
-        data.Label.TextColor3 =
-            selected
-            and Theme.Text
-            or Theme.SubText
-
-        data.Indicator.Visible =
-            selected
-
+    for navName, data in pairs(navButtons) do
+        local selected = (navName == name)
+        data.Button.BackgroundColor3 = selected and Theme.Element or Theme.Sidebar
+        data.Label.TextColor3 = selected and Theme.Text or Theme.SubText
+        data.Indicator.Visible = selected
+        data.SelectedBg.BackgroundTransparency = selected and 0 or 1
     end
 end
 
-triggerNav.MouseButton1Click:Connect(
-    function()
+triggerNav.MouseButton1Click:Connect(function()
+    showPage(triggerPage, "Trigger", "Triggerbot", "Configuración rápida y precisa")
+end)
 
-        showPage(
-            triggerPage,
-            "Trigger",
-            "Triggerbot",
-            "Configuración rápida y precisa"
-        )
+espNav.MouseButton1Click:Connect(function()
+    showPage(espPage, "ESP", "ESP", "Información visual de los jugadores")
+end)
 
-    end
-)
+menuNav.MouseButton1Click:Connect(function()
+    showPage(menuPage, "Menú", "Configuración", "Personaliza el panel")
+end)
 
-espNav.MouseButton1Click:Connect(
-    function()
-
-        showPage(
-            espPage,
-            "ESP",
-            "ESP",
-            "Información visual de los jugadores"
-        )
-
-    end
-)
-
-menuNav.MouseButton1Click:Connect(
-    function()
-
-        showPage(
-            menuPage,
-            "Menú",
-            "Configuración",
-            "Personaliza el panel"
-        )
-
-    end
-)
-
-graphicsNav.MouseButton1Click:Connect(
-    function()
-
-        showPage(
-            graphicsPage,
-            "Gráficos",
-            "Gráficos",
-            "Prioriza rendimiento sobre calidad"
-        )
-
-    end
-)
+graphicsNav.MouseButton1Click:Connect(function()
+    showPage(graphicsPage, "Gráficos", "Gráficos", "Prioriza rendimiento sobre calidad")
+end)
 
 --==================================================
 -- KEYBOARD
 --==================================================
 
-UserInputService.InputBegan:Connect(
-    function(input, processed)
-
-        if waitingTriggerKey
-            and input.UserInputType ==
-                Enum.UserInputType.Keyboard then
-
-            if input.KeyCode ~=
-                Enum.KeyCode.Unknown then
-
-                TriggerKey =
-                    input.KeyCode
-
-                waitingTriggerKey =
-                    false
-
-                triggerKeyValue.Text =
-                    TriggerKey.Name
-
-            end
-
-            return
+UserInputService.InputBegan:Connect(function(input, processed)
+    if waitingTriggerKey and input.UserInputType == Enum.UserInputType.Keyboard then
+        if input.KeyCode ~= Enum.KeyCode.Unknown then
+            TriggerKey = input.KeyCode
+            waitingTriggerKey = false
+            triggerKeyValue.Text = TriggerKey.Name
         end
-
-        if waitingMenuKey
-            and input.UserInputType ==
-                Enum.UserInputType.Keyboard then
-
-            if input.KeyCode ~=
-                Enum.KeyCode.Unknown then
-
-                MenuKey =
-                    input.KeyCode
-
-                waitingMenuKey =
-                    false
-
-                menuKeyValue.Text =
-                    MenuKey.Name
-
-            end
-
-            return
-        end
-
-        if processed then
-            return
-        end
-
-        if input.KeyCode ==
-            TriggerKey then
-
-            triggerbotEnabled =
-                not triggerbotEnabled
-
-            triggerToggle:Set(
-                triggerbotEnabled
-            )
-
-            triggerStatus.Text =
-                triggerbotEnabled
-                and "Activado"
-                or "Desactivado"
-
-            playToggleSound(
-                triggerbotEnabled
-            )
-
-            return
-        end
-
-        if input.KeyCode ==
-            MenuKey then
-
-            if streamerMode then
-
-                streamerMode =
-                    false
-
-                setMenuVisible(
-                    true,
-                    false
-                )
-
-            else
-
-                setMenuVisible(
-                    not menu.Visible,
-                    false
-                )
-
-            end
-
-        end
-
+        return
     end
-)
+
+    if waitingMenuKey and input.UserInputType == Enum.UserInputType.Keyboard then
+        if input.KeyCode ~= Enum.KeyCode.Unknown then
+            MenuKey = input.KeyCode
+            waitingMenuKey = false
+            menuKeyValue.Text = MenuKey.Name
+        end
+        return
+    end
+
+    if processed then return end
+
+    if input.KeyCode == TriggerKey then
+        triggerbotEnabled = not triggerbotEnabled
+        triggerToggle:Set(triggerbotEnabled)
+        triggerStatus.Text = triggerbotEnabled and "Activado" or "Desactivado"
+        triggerStatusDot.BackgroundColor3 = triggerbotEnabled and Theme.Green or Theme.Muted
+        triggerStatusText.Text = triggerbotEnabled and "Funcionando" or "Listo para activar"
+        triggerStatusText.TextColor3 = triggerbotEnabled and Theme.Green or Theme.Muted
+        playToggleSound(triggerbotEnabled)
+        return
+    end
+
+    if input.KeyCode == MenuKey then
+        if streamerMode then
+            streamerMode = false
+            setMenuVisible(true, false)
+        else
+            setMenuVisible(not menu.Visible, false)
+        end
+    end
+end)
 
 --==================================================
 -- DRAG
 --==================================================
 
-header.InputBegan:Connect(
-    function(input)
-
-        if input.UserInputType ==
-            Enum.UserInputType.MouseButton1 then
-
-            draggingMenu =
-                true
-
-            dragStart =
-                input.Position
-
-            menuStart =
-                menu.Position
-
-        end
-
+header.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        draggingMenu = true
+        dragStart = input.Position
+        menuStart = menu.Position
     end
-)
+end)
 
-UserInputService.InputChanged:Connect(
-    function(input)
-
-        if activeSlider
-            and input.UserInputType ==
-                Enum.UserInputType.MouseMovement then
-
-            activeSlider.update(
-                input.Position.X
-            )
-
-            return
-        end
-
-        if draggingMenu
-            and input.UserInputType ==
-                Enum.UserInputType.MouseMovement then
-
-            local delta =
-                input.Position
-                - dragStart
-
-            menu.Position =
-                UDim2.new(
-                    menuStart.X.Scale,
-                    menuStart.X.Offset + delta.X,
-
-                    menuStart.Y.Scale,
-                    menuStart.Y.Offset + delta.Y
-                )
-
-        end
-
+UserInputService.InputChanged:Connect(function(input)
+    if activeSlider and input.UserInputType == Enum.UserInputType.MouseMovement then
+        activeSlider.update(input.Position.X)
+        return
     end
-)
 
-UserInputService.InputEnded:Connect(
-    function(input)
-
-        if input.UserInputType ==
-            Enum.UserInputType.MouseButton1 then
-
-            draggingMenu =
-                false
-
-            activeSlider =
-                nil
-
-        end
-
+    if draggingMenu and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = input.Position - dragStart
+        menu.Position = UDim2.new(
+            menuStart.X.Scale, menuStart.X.Offset + delta.X,
+            menuStart.Y.Scale, menuStart.Y.Offset + delta.Y
+        )
     end
-)
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        draggingMenu = false
+        activeSlider = nil
+    end
+end)
 
 --==================================================
 -- START
 --==================================================
 
-showPage(
-    triggerPage,
-    "Trigger",
-    "Triggerbot",
-    "Configuración rápida y precisa"
-)
+showPage(triggerPage, "Trigger", "Triggerbot", "Configuración rápida y precisa")
 
-print(
-    "😈 CH PC | MODERN UI V2 | CARGADO"
-)
+print("😈 CH PC | MODERN UI V3.1 | CARGADO")
