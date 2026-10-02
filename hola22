@@ -1,26 +1,24 @@
 --==================================================
 -- 😈 CH MOBILE - Aimbot + ESP
--- Menú táctil · Puntito de mira
+-- Menú movible · Bolita movible · Puntito de mira
 --==================================================
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
-local GuiService = game:GetService("GuiService")
 
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local Camera = workspace.CurrentCamera
-local Mouse = LocalPlayer:GetMouse()
 
 --==================================================
 -- CONFIG
 --==================================================
 
 local aimbotEnabled = false
-local aimbotSmooth = 0.25          -- suavidad (0.1 = rápido, 0.4 = suave)
-local aimbotFOV = 120              -- radio del FOV en píxeles
+local aimbotSmooth = 0.25
+local aimbotFOV = 120
 local aimbotTeamCheck = true
 local aimbotFriendsCheck = true
 
@@ -30,9 +28,12 @@ local espHealth = true
 local espBoxes = true
 local espMaxDistance = 800
 
-local menuOpen = true
 local Character, Root
 local ESP = {}
+
+local draggingMenu = false
+local draggingBall = false
+local dragStart, uiStart
 
 --==================================================
 -- CHARACTER
@@ -42,14 +43,11 @@ local function setupCharacter(char)
 	Character = char
 	Root = char:WaitForChild("HumanoidRootPart", 5)
 end
-
-if LocalPlayer.Character then
-	task.spawn(setupCharacter, LocalPlayer.Character)
-end
+if LocalPlayer.Character then task.spawn(setupCharacter, LocalPlayer.Character) end
 LocalPlayer.CharacterAdded:Connect(setupCharacter)
 
 --==================================================
--- THEME (mismo estilo que CH PC)
+-- THEME
 --==================================================
 
 local Theme = {
@@ -101,31 +99,26 @@ local function animate(obj, time, props)
 end
 
 --==================================================
--- PUNTITO DE MIRA (centro de pantalla)
+-- PUNTITO DE MIRA
 --==================================================
 
 local crosshair = Instance.new("Frame")
-crosshair.Name = "Crosshair"
 crosshair.Size = UDim2.fromOffset(6, 6)
 crosshair.AnchorPoint = Vector2.new(0.5, 0.5)
 crosshair.Position = UDim2.fromScale(0.5, 0.5)
 crosshair.BackgroundColor3 = Theme.Accent
 crosshair.BorderSizePixel = 0
 crosshair.ZIndex = 100
-crosshair.Visible = true
 crosshair.Parent = gui
 addCorner(crosshair, 3)
 
--- Anillo alrededor del puntito
 local ring = Instance.new("Frame")
 ring.Size = UDim2.fromOffset(18, 18)
 ring.AnchorPoint = Vector2.new(0.5, 0.5)
 ring.Position = UDim2.fromScale(0.5, 0.5)
 ring.BackgroundTransparency = 1
-ring.BorderSizePixel = 0
 ring.ZIndex = 99
 ring.Parent = gui
-
 local ringStroke = Instance.new("UIStroke")
 ringStroke.Color = Theme.Accent
 ringStroke.Thickness = 1.5
@@ -133,17 +126,14 @@ ringStroke.Transparency = 0.3
 ringStroke.Parent = ring
 addCorner(ring, 9)
 
--- FOV circle (solo visible cuando aimbot está on)
 local fovCircle = Instance.new("Frame")
 fovCircle.Size = UDim2.fromOffset(aimbotFOV * 2, aimbotFOV * 2)
 fovCircle.AnchorPoint = Vector2.new(0.5, 0.5)
 fovCircle.Position = UDim2.fromScale(0.5, 0.5)
 fovCircle.BackgroundTransparency = 1
-fovCircle.BorderSizePixel = 0
 fovCircle.ZIndex = 50
 fovCircle.Visible = false
 fovCircle.Parent = gui
-
 local fovStroke = Instance.new("UIStroke")
 fovStroke.Color = Theme.Accent
 fovStroke.Thickness = 1
@@ -152,7 +142,7 @@ fovStroke.Parent = fovCircle
 addCorner(fovCircle, aimbotFOV)
 
 --==================================================
--- MENÚ MÓVIL
+-- MENÚ
 --==================================================
 
 local menu = Instance.new("Frame")
@@ -166,11 +156,11 @@ menu.Parent = gui
 addCorner(menu, 16)
 addStroke(menu, 0.3)
 
--- Header
 local header = Instance.new("Frame")
 header.Size = UDim2.new(1, 0, 0, 50)
 header.BackgroundColor3 = Theme.Sidebar
 header.BorderSizePixel = 0
+header.Active = true
 header.Parent = menu
 addCorner(header, 16)
 
@@ -196,7 +186,6 @@ closeBtn.TextSize = 18
 closeBtn.Parent = header
 addCorner(closeBtn, 8)
 
--- Contenido
 local content = Instance.new("ScrollingFrame")
 content.Size = UDim2.new(1, -20, 1, -60)
 content.Position = UDim2.fromOffset(10, 55)
@@ -207,9 +196,9 @@ content.ScrollBarImageColor3 = Theme.Accent
 content.CanvasSize = UDim2.fromOffset(0, 420)
 content.Parent = menu
 
-local layout = Instance.new("UIListLayout")
-layout.Padding = UDim.new(0, 10)
-layout.Parent = content
+local listLayout = Instance.new("UIListLayout")
+listLayout.Padding = UDim.new(0, 10)
+listLayout.Parent = content
 
 local function createCard(height)
 	local card = Instance.new("Frame")
@@ -273,17 +262,9 @@ local function createToggle(parent, y, text, desc, initial, callback)
 		animate(knob, 0.15, {Position = state and UDim2.new(1, -23, 0.5, -10) or UDim2.fromOffset(3, 3)})
 		if callback then callback(state) end
 	end)
-
-	return {
-		Set = function(_, v)
-			state = v
-			btn.BackgroundColor3 = state and Theme.Accent or Theme.Track
-			knob.Position = state and UDim2.new(1, -23, 0.5, -10) or UDim2.fromOffset(3, 3)
-		end
-	}
 end
 
--- AIMBOT CARD
+-- AIMBOT
 local aimCard = createCard(160)
 local aimTitle = Instance.new("TextLabel")
 aimTitle.Size = UDim2.new(1, -20, 0, 22)
@@ -307,7 +288,7 @@ aimStatus.TextSize = 11
 aimStatus.TextXAlignment = Enum.TextXAlignment.Left
 aimStatus.Parent = aimCard
 
-local aimToggle = createToggle(aimCard, 55, "Activar Aimbot", "Apunta automáticamente", false, function(on)
+createToggle(aimCard, 55, "Activar Aimbot", "Apunta automáticamente", false, function(on)
 	aimbotEnabled = on
 	aimStatus.Text = on and "Activado" or "Desactivado"
 	aimStatus.TextColor3 = on and Theme.Green or Theme.SubText
@@ -316,7 +297,7 @@ local aimToggle = createToggle(aimCard, 55, "Activar Aimbot", "Apunta automátic
 	ringStroke.Color = on and Theme.Green or Theme.Accent
 end)
 
--- ESP CARD
+-- ESP
 local espCard = createCard(200)
 local espTitle = Instance.new("TextLabel")
 espTitle.Size = UDim2.new(1, -20, 0, 22)
@@ -362,29 +343,103 @@ createToggle(espCard, 155, "Boxes", "Resaltar jugadores", true, function(on)
 	espBoxes = on
 end)
 
--- BOTÓN FLOTANTE (abrir menú)
-local openBtn = Instance.new("TextButton")
-openBtn.Size = UDim2.fromOffset(50, 50)
-openBtn.Position = UDim2.new(0, 15, 0.5, -25)
-openBtn.BackgroundColor3 = Theme.Accent
-openBtn.Text = "😈"
-openBtn.TextSize = 20
-openBtn.Visible = false
-openBtn.Parent = gui
-addCorner(openBtn, 25)
+--==================================================
+-- BOLITA PARA REABRIR (movible)
+--==================================================
 
+local ball = Instance.new("TextButton")
+ball.Name = "OpenBall"
+ball.Size = UDim2.fromOffset(54, 54)
+ball.Position = UDim2.fromOffset(20, 200)
+ball.BackgroundColor3 = Theme.Accent
+ball.Text = "😈"
+ball.TextSize = 22
+ball.Visible = false
+ball.Active = true
+ball.Parent = gui
+addCorner(ball, 27)
+addStroke(ball, 0.2)
+
+-- Cerrar menú → mostrar bolita
 closeBtn.MouseButton1Click:Connect(function()
 	menu.Visible = false
-	openBtn.Visible = true
+	ball.Visible = true
 end)
 
-openBtn.MouseButton1Click:Connect(function()
+-- Tocar bolita → abrir menú (si no se estaba arrastrando)
+local ballMoved = false
+ball.MouseButton1Click:Connect(function()
+	if ballMoved then
+		ballMoved = false
+		return
+	end
 	menu.Visible = true
-	openBtn.Visible = false
+	ball.Visible = false
 end)
 
 --==================================================
--- LÓGICA AIMBOT (móvil)
+-- ARRASTRAR MENÚ (header)
+--==================================================
+
+header.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch then
+		draggingMenu = true
+		dragStart = input.Position
+		uiStart = menu.Position
+	end
+end)
+
+--==================================================
+-- ARRASTRAR BOLITA
+--==================================================
+
+ball.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch then
+		draggingBall = true
+		ballMoved = false
+		dragStart = input.Position
+		uiStart = ball.Position
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if input.UserInputType ~= Enum.UserInputType.MouseMovement
+		and input.UserInputType ~= Enum.UserInputType.Touch then
+		return
+	end
+
+	if draggingMenu then
+		local delta = input.Position - dragStart
+		menu.Position = UDim2.new(
+			uiStart.X.Scale, uiStart.X.Offset + delta.X,
+			uiStart.Y.Scale, uiStart.Y.Offset + delta.Y
+		)
+	end
+
+	if draggingBall then
+		local delta = input.Position - dragStart
+		if delta.Magnitude > 5 then
+			ballMoved = true
+		end
+		ball.Position = UDim2.new(
+			uiStart.X.Scale, uiStart.X.Offset + delta.X,
+			uiStart.Y.Scale, uiStart.Y.Offset + delta.Y
+		)
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch then
+		draggingMenu = false
+		draggingBall = false
+	end
+end)
+
+--==================================================
+-- AIMBOT LOGIC
 --==================================================
 
 local function isSameTeam(plr)
@@ -422,8 +477,7 @@ local function getClosestEnemy()
 
 	for _, plr in ipairs(Players:GetPlayers()) do
 		if shouldTarget(plr) then
-			local char = plr.Character
-			local head = char and char:FindFirstChild("Head")
+			local head = plr.Character and plr.Character:FindFirstChild("Head")
 			if head then
 				local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
 				if onScreen and screenPos.Z > 0 then
@@ -439,10 +493,8 @@ local function getClosestEnemy()
 	return closest
 end
 
--- Aimbot loop
 RunService.RenderStepped:Connect(function()
 	if not aimbotEnabled then return end
-
 	local target = getClosestEnemy()
 	if target then
 		local camPos = Camera.CFrame.Position
@@ -452,7 +504,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 --==================================================
--- ESP
+-- ESP LOGIC
 --==================================================
 
 local function removeESP(plr)
@@ -466,7 +518,6 @@ end
 local function createESP(plr)
 	if not shouldTarget(plr) then return end
 	removeESP(plr)
-
 	local char = plr.Character
 	if not char then return end
 	local root = char:FindFirstChild("HumanoidRootPart")
@@ -537,4 +588,4 @@ task.spawn(function()
 	end
 end)
 
-print("😈 CH MOBILE | Aimbot + ESP | Cargado")
+print("😈 CH MOBILE | Menú + Bolita movibles | Cargado")
