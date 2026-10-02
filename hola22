@@ -1,6 +1,6 @@
 --==================================================
 -- 😈 CH MOBILE - Aimbot + ESP
--- Menú movible · Bolita movible · Puntito de mira
+-- Menú movible · Bolita movible · FOV + Velocidad
 --==================================================
 
 local Players = game:GetService("Players")
@@ -17,8 +17,8 @@ local Camera = workspace.CurrentCamera
 --==================================================
 
 local aimbotEnabled = false
-local aimbotSmooth = 0.25
-local aimbotFOV = 120
+local aimbotSmooth = 0.22      -- velocidad (más alto = más rápido)
+local aimbotFOV = 130          -- tamaño FOV en píxeles
 local aimbotTeamCheck = true
 local aimbotFriendsCheck = true
 
@@ -34,6 +34,8 @@ local ESP = {}
 local draggingMenu = false
 local draggingBall = false
 local dragStart, uiStart
+local ballMoved = false
+local activeSlider = nil
 
 --==================================================
 -- CHARACTER
@@ -67,7 +69,7 @@ local Theme = {
 }
 
 --==================================================
--- GUI
+-- GUI BASE
 --==================================================
 
 local old = PlayerGui:FindFirstChild("CH_MOBILE")
@@ -99,7 +101,7 @@ local function animate(obj, time, props)
 end
 
 --==================================================
--- PUNTITO DE MIRA
+-- PUNTITO + FOV (centro = donde dispara)
 --==================================================
 
 local crosshair = Instance.new("Frame")
@@ -136,10 +138,15 @@ fovCircle.Visible = false
 fovCircle.Parent = gui
 local fovStroke = Instance.new("UIStroke")
 fovStroke.Color = Theme.Accent
-fovStroke.Thickness = 1
-fovStroke.Transparency = 0.6
+fovStroke.Thickness = 1.2
+fovStroke.Transparency = 0.55
 fovStroke.Parent = fovCircle
 addCorner(fovCircle, aimbotFOV)
+
+local function updateFOVVisual()
+	fovCircle.Size = UDim2.fromOffset(aimbotFOV * 2, aimbotFOV * 2)
+	addCorner(fovCircle, aimbotFOV)
+end
 
 --==================================================
 -- MENÚ
@@ -147,8 +154,8 @@ addCorner(fovCircle, aimbotFOV)
 
 local menu = Instance.new("Frame")
 menu.Name = "Menu"
-menu.Size = UDim2.fromOffset(300, 380)
-menu.Position = UDim2.new(0.5, -150, 0.5, -190)
+menu.Size = UDim2.fromOffset(300, 440)
+menu.Position = UDim2.new(0.5, -150, 0.5, -220)
 menu.BackgroundColor3 = Theme.Background
 menu.BorderSizePixel = 0
 menu.Active = true
@@ -193,7 +200,7 @@ content.BackgroundTransparency = 1
 content.BorderSizePixel = 0
 content.ScrollBarThickness = 3
 content.ScrollBarImageColor3 = Theme.Accent
-content.CanvasSize = UDim2.fromOffset(0, 420)
+content.CanvasSize = UDim2.fromOffset(0, 520)
 content.Parent = menu
 
 local listLayout = Instance.new("UIListLayout")
@@ -264,8 +271,80 @@ local function createToggle(parent, y, text, desc, initial, callback)
 	end)
 end
 
--- AIMBOT
-local aimCard = createCard(160)
+local function createSlider(parent, y, title, min, max, value, callback)
+	local holder = Instance.new("Frame")
+	holder.Size = UDim2.new(1, -20, 0, 55)
+	holder.Position = UDim2.fromOffset(10, y)
+	holder.BackgroundTransparency = 1
+	holder.Parent = parent
+
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.new(1, 0, 0, 18)
+	label.BackgroundTransparency = 1
+	label.Text = title .. tostring(value)
+	label.TextColor3 = Theme.Text
+	label.Font = Enum.Font.GothamMedium
+	label.TextSize = 12
+	label.TextXAlignment = Enum.TextXAlignment.Left
+	label.Parent = holder
+
+	local bar = Instance.new("TextButton")
+	bar.Size = UDim2.new(1, 0, 0, 8)
+	bar.Position = UDim2.fromOffset(0, 30)
+	bar.BackgroundColor3 = Theme.Track
+	bar.BorderSizePixel = 0
+	bar.Text = ""
+	bar.Parent = holder
+	addCorner(bar, 4)
+
+	local fill = Instance.new("Frame")
+	fill.BackgroundColor3 = Theme.Accent
+	fill.BorderSizePixel = 0
+	fill.Parent = bar
+	addCorner(fill, 4)
+
+	local knob = Instance.new("Frame")
+	knob.Size = UDim2.fromOffset(16, 16)
+	knob.AnchorPoint = Vector2.new(0.5, 0.5)
+	knob.BackgroundColor3 = Theme.White
+	knob.BorderSizePixel = 0
+	knob.Parent = bar
+	addCorner(knob, 8)
+
+	local slider = {value = value}
+
+	local function update(x)
+		local width = bar.AbsoluteSize.X
+		if width <= 0 then return end
+		local percent = math.clamp((x - bar.AbsolutePosition.X) / width, 0, 1)
+		local newValue = math.floor(min + (max - min) * percent + 0.5)
+		slider.value = newValue
+		label.Text = title .. tostring(newValue)
+		fill.Size = UDim2.new(percent, 0, 1, 0)
+		knob.Position = UDim2.new(percent, 0, 0.5, 0)
+		if callback then callback(newValue) end
+	end
+
+	slider.update = update
+
+	bar.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch then
+			activeSlider = slider
+			update(input.Position.X)
+		end
+	end)
+
+	task.defer(function()
+		local percent = math.clamp((value - min) / (max - min), 0, 1)
+		update(bar.AbsolutePosition.X + bar.AbsoluteSize.X * percent)
+	end)
+
+	return slider
+end
+
+-- AIMBOT CARD
+local aimCard = createCard(240)
 local aimTitle = Instance.new("TextLabel")
 aimTitle.Size = UDim2.new(1, -20, 0, 22)
 aimTitle.Position = UDim2.fromOffset(12, 10)
@@ -281,23 +360,34 @@ local aimStatus = Instance.new("TextLabel")
 aimStatus.Size = UDim2.new(1, -20, 0, 16)
 aimStatus.Position = UDim2.fromOffset(12, 34)
 aimStatus.BackgroundTransparency = 1
-aimStatus.Text = "Desactivado"
+aimStatus.Text = "Desactivado · dispara al centro (puntito)"
 aimStatus.TextColor3 = Theme.SubText
 aimStatus.Font = Enum.Font.Gotham
-aimStatus.TextSize = 11
+aimStatus.TextSize = 10
 aimStatus.TextXAlignment = Enum.TextXAlignment.Left
 aimStatus.Parent = aimCard
 
-createToggle(aimCard, 55, "Activar Aimbot", "Apunta automáticamente", false, function(on)
+createToggle(aimCard, 55, "Activar Aimbot", "Mueve la mira al enemigo", false, function(on)
 	aimbotEnabled = on
-	aimStatus.Text = on and "Activado" or "Desactivado"
+	aimStatus.Text = on and "Activado · apunta al puntito central" or "Desactivado · dispara al centro (puntito)"
 	aimStatus.TextColor3 = on and Theme.Green or Theme.SubText
 	fovCircle.Visible = on
 	crosshair.BackgroundColor3 = on and Theme.Green or Theme.Accent
 	ringStroke.Color = on and Theme.Green or Theme.Accent
 end)
 
--- ESP
+-- Velocidad: 5 = lento, 50 = muy rápido → se convierte a smooth
+createSlider(aimCard, 115, "Velocidad  ", 5, 50, 22, function(v)
+	-- más valor = más rápido (smooth más alto)
+	aimbotSmooth = math.clamp(v / 100, 0.05, 0.55)
+end)
+
+createSlider(aimCard, 175, "FOV  ", 40, 250, 130, function(v)
+	aimbotFOV = v
+	updateFOVVisual()
+end)
+
+-- ESP CARD
 local espCard = createCard(200)
 local espTitle = Instance.new("TextLabel")
 espTitle.Size = UDim2.new(1, -20, 0, 22)
@@ -344,7 +434,7 @@ createToggle(espCard, 155, "Boxes", "Resaltar jugadores", true, function(on)
 end)
 
 --==================================================
--- BOLITA PARA REABRIR (movible)
+-- BOLITA REABRIR
 --==================================================
 
 local ball = Instance.new("TextButton")
@@ -360,14 +450,11 @@ ball.Parent = gui
 addCorner(ball, 27)
 addStroke(ball, 0.2)
 
--- Cerrar menú → mostrar bolita
 closeBtn.MouseButton1Click:Connect(function()
 	menu.Visible = false
 	ball.Visible = true
 end)
 
--- Tocar bolita → abrir menú (si no se estaba arrastrando)
-local ballMoved = false
 ball.MouseButton1Click:Connect(function()
 	if ballMoved then
 		ballMoved = false
@@ -378,7 +465,7 @@ ball.MouseButton1Click:Connect(function()
 end)
 
 --==================================================
--- ARRASTRAR MENÚ (header)
+-- ARRASTRAR MENÚ Y BOLITA
 --==================================================
 
 header.InputBegan:Connect(function(input)
@@ -389,10 +476,6 @@ header.InputBegan:Connect(function(input)
 		uiStart = menu.Position
 	end
 end)
-
---==================================================
--- ARRASTRAR BOLITA
---==================================================
 
 ball.InputBegan:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1
@@ -410,6 +493,11 @@ UserInputService.InputChanged:Connect(function(input)
 		return
 	end
 
+	if activeSlider then
+		activeSlider.update(input.Position.X)
+		return
+	end
+
 	if draggingMenu then
 		local delta = input.Position - dragStart
 		menu.Position = UDim2.new(
@@ -420,9 +508,7 @@ UserInputService.InputChanged:Connect(function(input)
 
 	if draggingBall then
 		local delta = input.Position - dragStart
-		if delta.Magnitude > 5 then
-			ballMoved = true
-		end
+		if delta.Magnitude > 5 then ballMoved = true end
 		ball.Position = UDim2.new(
 			uiStart.X.Scale, uiStart.X.Offset + delta.X,
 			uiStart.Y.Scale, uiStart.Y.Offset + delta.Y
@@ -435,11 +521,12 @@ UserInputService.InputEnded:Connect(function(input)
 		or input.UserInputType == Enum.UserInputType.Touch then
 		draggingMenu = false
 		draggingBall = false
+		activeSlider = nil
 	end
 end)
 
 --==================================================
--- AIMBOT LOGIC
+-- AIMBOT
 --==================================================
 
 local function isSameTeam(plr)
@@ -498,13 +585,13 @@ RunService.RenderStepped:Connect(function()
 	local target = getClosestEnemy()
 	if target then
 		local camPos = Camera.CFrame.Position
-		local goal = CFrame.new(camPos, target.Position)
+		local goal = CFrame.lookAt(camPos, target.Position)
 		Camera.CFrame = Camera.CFrame:Lerp(goal, aimbotSmooth)
 	end
 end)
 
 --==================================================
--- ESP LOGIC
+-- ESP
 --==================================================
 
 local function removeESP(plr)
@@ -588,4 +675,4 @@ task.spawn(function()
 	end
 end)
 
-print("😈 CH MOBILE | Menú + Bolita movibles | Cargado")
+print("😈 CH MOBILE | FOV + Velocidad | Cargado")
