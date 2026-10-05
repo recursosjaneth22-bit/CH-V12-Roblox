@@ -1,6 +1,6 @@
 --==================================================
 -- 🔑 CH LIFETIME KEY + CH PC MODERN UI V3.1
--- + HITBOX (Color Negro) + Team Detection Corregida
+-- + HITBOX + Equipo corregido + Loading mejorado
 --==================================================
 
 local HttpService = game:GetService("HttpService")
@@ -82,7 +82,6 @@ local function checkAlreadyOwned()
 	for key, owner in pairs(keys) do
 		if tostring(owner) == tostring(LocalPlayer.UserId) then
 			KEY_UNLOCKED = true
-			sendWebhook("✅ Acceso Lifetime", "**Usuario:** `" .. LocalPlayer.Name .. "`\n**UserId:** `" .. LocalPlayer.UserId .. "`\n**Key:** `" .. key .. "`", 3066993)
 			return true
 		end
 	end
@@ -221,6 +220,56 @@ if not checkAlreadyOwned() then
 		task.wait()
 	end
 end
+
+--==================== PANTALLA DE CARGA (más larga) ====================
+local loadingGui = Instance.new("ScreenGui")
+loadingGui.Name = "CH_Loading"
+loadingGui.ResetOnSpawn = false
+loadingGui.IgnoreGuiInset = true
+loadingGui.DisplayOrder = 999
+loadingGui.Parent = (gethui and gethui()) or game:GetService("CoreGui")
+
+local loadingBg = Instance.new("Frame")
+loadingBg.Size = UDim2.fromScale(1, 1)
+loadingBg.BackgroundColor3 = Color3.fromRGB(10, 10, 12)
+loadingBg.BackgroundTransparency = 0.15
+loadingBg.BorderSizePixel = 0
+loadingBg.Parent = loadingGui
+
+local loadingFrame = Instance.new("Frame")
+loadingFrame.Size = UDim2.fromOffset(300, 100)
+loadingFrame.Position = UDim2.new(0.5, -150, 0.5, -50)
+loadingFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 18)
+loadingFrame.BorderSizePixel = 0
+loadingFrame.Parent = loadingGui
+Instance.new("UICorner", loadingFrame).CornerRadius = UDim.new(0, 14)
+
+local loadingStroke = Instance.new("UIStroke")
+loadingStroke.Color = Color3.fromRGB(50, 50, 55)
+loadingStroke.Thickness = 1.5
+loadingStroke.Parent = loadingFrame
+
+local loadingText = Instance.new("TextLabel")
+loadingText.Size = UDim2.new(1, -20, 0, 40)
+loadingText.Position = UDim2.fromOffset(10, 20)
+loadingText.BackgroundTransparency = 1
+loadingText.Text = "😈 Cargando script..."
+loadingText.TextColor3 = Color3.fromRGB(255, 255, 255)
+loadingText.TextSize = 20
+loadingText.Font = Enum.Font.GothamBold
+loadingText.Parent = loadingFrame
+
+local loadingSub = Instance.new("TextLabel")
+loadingSub.Size = UDim2.new(1, -20, 0, 25)
+loadingSub.Position = UDim2.fromOffset(10, 55)
+loadingSub.BackgroundTransparency = 1
+loadingSub.Text = "Por favor espera unos segundos"
+loadingSub.TextColor3 = Color3.fromRGB(160, 160, 165)
+loadingSub.TextSize = 13
+loadingSub.Font = Enum.Font.Gotham
+loadingSub.Parent = loadingFrame
+
+-- El loading se destruirá más abajo, después de crear el menú
 
 print("😈 CH Lifetime Key | Acceso concedido")
 
@@ -361,6 +410,7 @@ menu.Position = UDim2.new(0.5, -350, 0.5, -230)
 menu.BackgroundColor3 = Theme.Background
 menu.BorderSizePixel = 0
 menu.Active = true
+menu.Visible = false -- Se muestra al final
 menu.Parent = gui
 addCorner(menu, 18)
 addStroke(menu, 0.3, 1, Theme.StrokeLight)
@@ -807,7 +857,6 @@ local function createSlider(parent, y, title, min, max, value, callback)
 end
 
 --==================== PÁGINAS ====================
--- TRIGGER
 local triggerCard = createCard(triggerPage, 100)
 createLabel(triggerCard, "🔫  TRIGGERBOT", 18, 14, 250, 20, 13, Theme.Text)
 local triggerStatus = createLabel(triggerCard, "Desactivado", 18, 42, 200, 16, 9, Theme.SubText)
@@ -1142,7 +1191,7 @@ end
 for _, Player in ipairs(Players:GetPlayers()) do SetupPlayer(Player) end
 Players.PlayerAdded:Connect(SetupPlayer)
 
---==================== DETECCIÓN DE EQUIPO CORREGIDA ====================
+--==================== DETECCIÓN DE EQUIPO (CORREGIDA CON "Equipo") ====================
 local function isFriend(plr)
 	if not ignoreFriends or not plr then return false end
 	local ok, result = pcall(function() return LocalPlayer:IsFriendsWith(plr.UserId) end)
@@ -1152,15 +1201,15 @@ end
 local function isSameTeam(plr)
 	if not ignoreTeam or not plr or plr == LocalPlayer then return false end
 
-	-- Método principal que usa el otro script
-	local myTeam = LocalPlayer:GetAttribute("Team")
-	local otherTeam = plr:GetAttribute("Team")
+	-- Método correcto del juego
+	local miEquipo = LocalPlayer:GetAttribute("Equipo")
+	local suEquipo = plr:GetAttribute("Equipo")
 
-	if myTeam and otherTeam and tostring(myTeam) == tostring(otherTeam) then
+	if miEquipo ~= nil and suEquipo ~= nil and tostring(miEquipo) == tostring(suEquipo) then
 		return true
 	end
 
-	-- Fallback por si acaso
+	-- Fallback
 	if LocalPlayer.Team and plr.Team and LocalPlayer.Team == plr.Team then
 		return true
 	end
@@ -1470,4 +1519,12 @@ UserInputService.InputEnded:Connect(function(input)
 end)
 
 showPage(triggerPage, "Trigger", "Triggerbot", "Configuración rápida y precisa")
-print("😈 CH PC | MODERN UI V3.1 + Hitbox + Team Detection | CARGADO")
+
+-- Mostrar el menú y quitar el loading después de que todo esté listo
+task.wait(0.8)
+menu.Visible = true
+if loadingGui and loadingGui.Parent then
+	loadingGui:Destroy()
+end
+
+print("😈 CH PC | MODERN UI V3.1 + Hitbox + Equipo + Loading mejorado | CARGADO")
