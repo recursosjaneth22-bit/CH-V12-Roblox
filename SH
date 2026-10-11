@@ -236,12 +236,12 @@ print("😈 CH Lifetime Key | Acceso concedido")
 local MenuKey = Enum.KeyCode.X
 local TriggerKey = Enum.KeyCode.Q
 local HitboxKey = Enum.KeyCode.H
-local TeleportKey = Enum.KeyCode.T
-local DownClipKey = Enum.KeyCode.V
 
 local triggerbotEnabled = false
 local lastTriggerShot = 0
 local ignoreFriends = true
+local triggerDelay = 0.03
+local triggerPrecision = 0.25
 
 local espEnabled = false
 local espNames = true
@@ -253,23 +253,17 @@ local ESP_RED = Color3.fromRGB(255, 45, 45)
 local HitboxEnabled = false
 local HitboxVisible = true
 local HitboxSize = 5
-
-local infinityJumpEnabled = false
-local antiFreezeEnabled = true
-local downClipEnabled = false
-local isHoldingDown = false
-local selectedPlayer = nil
-local isTeleporting = false
+local lowTexturesEnabled = false
 
 local jumpSoundEnabled = true
 local killSoundEnabled = true
-local runDefaultEnabled = true   -- sonido correr de Roblox (default)
-local runMuteEnabled = false     -- silenciar correr SOLO en mi personaje
+local runDefaultEnabled = true
+local runMuteEnabled = false
 local jumpVolume = 0.85
 local killVolume = 1.0
 local JUMP_SOUND_ID = "rbxassetid://109397400639910"
 local KILL_SOUND_ID = "rbxassetid://14535092250"
-local lastJumpByPlayer = {}
+local lastJumpSound = 0
 local lastShotTime = 0
 local lastShotTarget = nil
 local lastAnyShotTime = 0
@@ -280,13 +274,11 @@ local streamerMode = false
 local waitingMenuKey = false
 local waitingTriggerKey = false
 local waitingHitboxKey = false
-local waitingTeleportKey = false
-local waitingDownClipKey = false
 local activeSlider = nil
 local draggingMenu = false
 local dragStart, menuStart
 local ESP = {}
-local playerButtons = {}
+local originalMaterials = {}
 
 local function setupCharacter(char)
 	Character = char
@@ -455,52 +447,55 @@ RunService.Heartbeat:Connect(function()
 	end
 end)
 
--- Salto custom para TODOS los jugadores (lo oyes tú)
-local function playJumpFor(plr)
-	if not jumpSoundEnabled or not plr then return end
+-- Salto solo en TI
+UserInputService.JumpRequest:Connect(function()
+	if not jumpSoundEnabled then return end
 	local now = os.clock()
-	if lastJumpByPlayer[plr] and (now - lastJumpByPlayer[plr]) < 0.3 then return end
-	lastJumpByPlayer[plr] = now
+	if now - lastJumpSound < 0.35 then return end
+	lastJumpSound = now
+	playSfx(jumpSfx, jumpVolume)
+end)
+
+-- Eliminar texturas / estilo simple (como la imagen)
+local function setLowTextures(on)
+	lowTexturesEnabled = on
 	pcall(function()
-		local s = Instance.new("Sound")
-		s.SoundId = JUMP_SOUND_ID
-		s.Volume = math.clamp(jumpVolume, 0, 2)
-		s.Parent = gui
-		s:Play()
-		s.Ended:Connect(function() s:Destroy() end)
-		task.delay(2, function() if s and s.Parent then s:Destroy() end end)
+		settings().Rendering.QualityLevel = on and Enum.QualityLevel.Level01 or Enum.QualityLevel.Automatic
 	end)
-end
-
-local function hookJumpOnCharacter(plr, char)
-	local hum = char:FindFirstChildOfClass("Humanoid") or char:WaitForChild("Humanoid", 5)
-	if not hum then return end
-	hum.StateChanged:Connect(function(_, new)
-		if new == Enum.HumanoidStateType.Jumping then
-			playJumpFor(plr)
+	for _, obj in ipairs(workspace:GetDescendants()) do
+		if obj:IsA("BasePart") then
+			if on then
+				if not originalMaterials[obj] then
+					originalMaterials[obj] = obj.Material
+				end
+				obj.Material = Enum.Material.SmoothPlastic
+				obj.Reflectance = 0
+			else
+				if originalMaterials[obj] then
+					obj.Material = originalMaterials[obj]
+				end
+			end
+		elseif obj:IsA("Decal") or obj:IsA("Texture") then
+			obj.Transparency = on and 1 or 0
+		elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") then
+			obj.Enabled = not on
 		end
-	end)
-end
-
-local function hookPlayerSounds(plr)
-	plr.CharacterAdded:Connect(function(char)
-		task.wait(0.3)
-		hookJumpOnCharacter(plr, char)
-		if plr == LocalPlayer then applyLocalRunSettings(char) end
-	end)
-	if plr.Character then
-		task.spawn(function()
-			task.wait(0.3)
-			hookJumpOnCharacter(plr, plr.Character)
-			if plr == LocalPlayer then applyLocalRunSettings(plr.Character) end
-		end)
 	end
 end
-for _, plr in ipairs(Players:GetPlayers()) do hookPlayerSounds(plr) end
-Players.PlayerAdded:Connect(hookPlayerSounds)
 
-UserInputService.JumpRequest:Connect(function()
-	playJumpFor(LocalPlayer)
+workspace.DescendantAdded:Connect(function(obj)
+	if not lowTexturesEnabled then return end
+	task.defer(function()
+		if obj:IsA("BasePart") then
+			originalMaterials[obj] = obj.Material
+			obj.Material = Enum.Material.SmoothPlastic
+			obj.Reflectance = 0
+		elseif obj:IsA("Decal") or obj:IsA("Texture") then
+			obj.Transparency = 1
+		elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") then
+			obj.Enabled = false
+		end
+	end)
 end)
 
 local function markShotTarget()
@@ -666,10 +661,9 @@ end
 local triggerNav = createNav("Trigger", "🔫", 100)
 local espNav = createNav("ESP", "👁", 148)
 local hitboxNav = createNav("Hitbox", "🎯", 196)
-local playerNav = createNav("Player", "👤", 244)
-local tpNav = createNav("Teleport", "📍", 292)
-local soundsNav = createNav("Sonidos", "🔊", 340)
-local menuNav = createNav("Menú", "⚙", 388)
+local graphicsNav = createNav("Gráficos", "🎨", 244)
+local soundsNav = createNav("Sonidos", "🔊", 292)
+local menuNav = createNav("Menú", "⚙", 340)
 
 local content = Instance.new("Frame")
 content.Size = UDim2.new(1, -185, 1, -2)
@@ -750,8 +744,7 @@ end
 local triggerPage = createPage()
 local espPage = createPage()
 local hitboxPage = createPage()
-local playerPage = createPage()
-local tpPage = createPage()
+local graphicsPage = createPage()
 local soundsPage = createPage()
 local menuPage = createPage()
 
@@ -914,12 +907,23 @@ triggerToggle.Button.Position = UDim2.new(1, -60, 0, 36)
 
 local triggerKeyValue = createKeyBind(triggerPage, "Tecla del Trigger", "Q", function(lbl)
 	waitingTriggerKey = true
-	waitingMenuKey, waitingHitboxKey, waitingTeleportKey, waitingDownClipKey = false, false, false, false
+	waitingMenuKey, waitingHitboxKey = false, false
 	lbl.Text = "..."
 end)
 
 local triggerFilter = createCard(triggerPage, 90)
 createToggle(triggerFilter, 20, "👥  Ignorar amigos", "No apunta a tus amigos", true, function(v) ignoreFriends = v end)
+
+local triggerTune = createCard(triggerPage, 160)
+createSlider(triggerTune, 12, "Rapidez (ms)  ", 20, 150, 30, function(v)
+	-- más bajo = más rápido
+	triggerDelay = v / 1000
+end)
+createSlider(triggerTune, 80, "Precisión  ", 10, 90, 25, function(v)
+	-- más bajo = más fácil dar (más descarado)
+	triggerPrecision = v / 100
+end)
+createLabel(triggerTune, "Default descarado: Rapidez 30 · Precisión 25", 18, 140, 360, 14, 10, Theme.Muted)
 
 -- ESP
 local espCard = createCard(espPage, 100)
@@ -958,7 +962,7 @@ end)
 
 local hitboxKeyValue = createKeyBind(hitboxPage, "Tecla Hitbox", "H", function(lbl)
 	waitingHitboxKey = true
-	waitingMenuKey, waitingTriggerKey, waitingTeleportKey, waitingDownClipKey = false, false, false, false
+	waitingMenuKey, waitingTriggerKey = false, false
 	lbl.Text = "..."
 end)
 
@@ -968,107 +972,14 @@ createSlider(hitboxConfig, 20, "Tamaño  ", 0, 40, HitboxSize, function(v)
 	if HitboxEnabled then UpdateAllHitboxes() end
 end)
 
--- PLAYER
-local infJumpCard = createCard(playerPage, 100)
-createLabel(infJumpCard, "♾️  INFINITY JUMP", 18, 14, 250, 20, 14)
-local infJumpStatus = createLabel(infJumpCard, "Desactivado", 18, 42, 200, 16, 11, Theme.SubText)
-local infJumpToggle = createToggle(infJumpCard, 0, "", "", false, function(on)
-	infinityJumpEnabled = on
-	infJumpStatus.Text = on and "Activado" or "Desactivado"
+-- GRAFICOS
+local gfxCard = createCard(graphicsPage, 120)
+createLabel(gfxCard, "🎨  ELIMINAR TEXTURAS", 18, 14, 320, 20, 14)
+createLabel(gfxCard, "Estilo simple / plástico (como la imagen)", 18, 42, 360, 16, 10, Theme.SubText)
+local gfxToggle = createToggle(gfxCard, 60, "🧱  Texturas simples", "SmoothPlastic + sin decals", false, function(on)
+	setLowTextures(on)
 	playToggleSound(on)
 end)
-infJumpToggle.Button.Position = UDim2.new(1, -60, 0, 36)
-
-local freezeCard = createCard(playerPage, 90)
-createToggle(freezeCard, 20, "⏱️  Anti Freeze", "Moverte durante los 5 segundos", true, function(v) antiFreezeEnabled = v end)
-
-local downClipCard = createCard(playerPage, 110)
-createLabel(downClipCard, "⬇️  SOLO BAJAR", 18, 12, 280, 20, 14)
-local downClipStatus = createLabel(downClipCard, "Desactivado", 18, 38, 280, 16, 11, Theme.SubText)
-createLabel(downClipCard, "Mantén la tecla para bajar bajo el mapa", 18, 58, 320, 14, 10, Theme.Muted)
-local downClipToggle = createToggle(downClipCard, 0, "", "", false, function(on)
-	downClipEnabled = on
-	downClipStatus.Text = on and "Activado" or "Desactivado"
-	playToggleSound(on)
-	if not on then isHoldingDown = false end
-end)
-downClipToggle.Button.Position = UDim2.new(1, -60, 0, 36)
-
-local downClipKeyValue = createKeyBind(playerPage, "Tecla Solo Bajar", "V", function(lbl)
-	waitingDownClipKey = true
-	waitingMenuKey, waitingTriggerKey, waitingHitboxKey, waitingTeleportKey = false, false, false, false
-	lbl.Text = "..."
-end)
-
--- TELEPORT
-local tpInfo = createCard(tpPage, 90)
-createLabel(tpInfo, "📍  TELEPORT SUAVE", 18, 14, 300, 20, 14)
-local selectedLabel = createLabel(tpInfo, "Seleccionado: Ninguno", 18, 42, 350, 18, 12, Theme.SubText)
-createLabel(tpInfo, "Pulsa la tecla para ir (modo suave)", 18, 62, 350, 16, 10, Theme.Muted)
-
-local tpKeyValue = createKeyBind(tpPage, "Tecla de Teleport", "T", function(lbl)
-	waitingTeleportKey = true
-	waitingMenuKey, waitingTriggerKey, waitingHitboxKey, waitingDownClipKey = false, false, false, false
-	lbl.Text = "..."
-end)
-
-local tpListCard = createCard(tpPage, 240)
-local tpList = Instance.new("ScrollingFrame")
-tpList.Size = UDim2.new(1, -20, 1, -50)
-tpList.Position = UDim2.fromOffset(10, 40)
-tpList.BackgroundTransparency = 1
-tpList.BorderSizePixel = 0
-tpList.ScrollBarThickness = 4
-tpList.ScrollBarImageColor3 = Theme.Accent
-tpList.CanvasSize = UDim2.fromOffset(0, 0)
-tpList.Parent = tpListCard
-local tpLayout = Instance.new("UIListLayout")
-tpLayout.Padding = UDim.new(0, 6)
-tpLayout.Parent = tpList
-tpLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-	tpList.CanvasSize = UDim2.fromOffset(0, tpLayout.AbsoluteContentSize.Y + 10)
-end)
-local refreshBtn = Instance.new("TextButton")
-refreshBtn.Size = UDim2.new(1, -20, 0, 32)
-refreshBtn.Position = UDim2.fromOffset(10, 8)
-refreshBtn.BackgroundColor3 = Theme.Accent
-refreshBtn.BorderSizePixel = 0
-refreshBtn.Text = "🔄  Actualizar lista"
-refreshBtn.TextColor3 = Theme.White
-refreshBtn.TextSize = 12
-refreshBtn.Font = Enum.Font.GothamBold
-refreshBtn.Parent = tpListCard
-addCorner(refreshBtn, 8)
-
-local function refreshPlayerList()
-	for _, btn in pairs(playerButtons) do btn:Destroy() end
-	table.clear(playerButtons)
-	for _, plr in ipairs(Players:GetPlayers()) do
-		if plr ~= LocalPlayer then
-			local btn = Instance.new("TextButton")
-			btn.Size = UDim2.new(1, -10, 0, 36)
-			btn.BackgroundColor3 = (selectedPlayer == plr) and Theme.Accent or Theme.Element
-			btn.BorderSizePixel = 0
-			btn.Text = "  " .. plr.Name
-			btn.TextColor3 = Theme.Text
-			btn.TextSize = 13
-			btn.Font = Enum.Font.GothamMedium
-			btn.TextXAlignment = Enum.TextXAlignment.Left
-			btn.AutoButtonColor = false
-			btn.Parent = tpList
-			addCorner(btn, 8)
-			btn.MouseButton1Click:Connect(function()
-				selectedPlayer = plr
-				selectedLabel.Text = "Seleccionado: " .. plr.Name
-				selectedLabel.TextColor3 = Theme.Green
-				refreshPlayerList()
-				playToggleSound(true)
-			end)
-			table.insert(playerButtons, btn)
-		end
-	end
-end
-refreshBtn.MouseButton1Click:Connect(refreshPlayerList)
 
 -- SONIDOS
 local soundsMain = createCard(soundsPage, 90)
@@ -1076,7 +987,7 @@ createLabel(soundsMain, "🔊  SONIDOS", 18, 14, 300, 20, 14)
 createLabel(soundsMain, "Salto en todos · Correr restaurable · Kill silencia juego", 18, 42, 400, 16, 10, Theme.SubText)
 
 local soundsToggles = createCard(soundsPage, 240)
-createToggle(soundsToggles, 10, "⬆  Salto (todos)", "Suena cuando cualquiera salta", true, function(v) jumpSoundEnabled = v end)
+createToggle(soundsToggles, 10, "⬆  Salto", "Solo en ti", true, function(v) jumpSoundEnabled = v end)
 createToggle(soundsToggles, 65, "🏃  Correr default", "Sonido de Roblox (solo tú)", true, function(v)
 	runDefaultEnabled = v
 	if v then runMuteEnabled = false end
@@ -1109,13 +1020,13 @@ local function makeTestBtn(y, text, fn)
 	addCorner(b, 10)
 	b.MouseButton1Click:Connect(fn)
 end
-makeTestBtn(10, "▶  Probar SALTO", function() playJumpFor(LocalPlayer) end)
+makeTestBtn(10, "▶  Probar SALTO", function() playSfx(jumpSfx, jumpVolume) end)
 makeTestBtn(52, "▶  Probar KILL", function() playKillSfx(nil) end)
 
 -- MENU PAGE
 local menuKeyValue = createKeyBind(menuPage, "Tecla del menú", "X", function(lbl)
 	waitingMenuKey = true
-	waitingTriggerKey, waitingHitboxKey, waitingTeleportKey, waitingDownClipKey = false, false, false, false
+	waitingTriggerKey, waitingHitboxKey = false, false
 	lbl.Text = "..."
 end)
 
@@ -1140,48 +1051,6 @@ closeForever.Parent = closeCard
 addCorner(closeForever, 11)
 
 --==================== LOGICA ====================
-RunService.Stepped:Connect(function()
-	if downClipEnabled and isHoldingDown and Character then
-		for _, part in ipairs(Character:GetDescendants()) do
-			if part:IsA("BasePart") then part.CanCollide = false end
-		end
-		if Root then Root.Velocity = Vector3.new(Root.Velocity.X, -45, Root.Velocity.Z) end
-	end
-end)
-
-local function doTeleport()
-	if isTeleporting or not selectedPlayer or not Root then return end
-	if not selectedPlayer.Character then return end
-	local targetRoot = selectedPlayer.Character:FindFirstChild("HumanoidRootPart")
-	if not targetRoot then return end
-	isTeleporting = true
-	local offset = targetRoot.CFrame.LookVector * -6
-	local targetPos = targetRoot.Position + offset + Vector3.new(0, 2, 0)
-	local startPos = Root.Position
-	task.spawn(function()
-		for i = 1, 10 do
-			if not Root or not Root.Parent then break end
-			Root.CFrame = CFrame.new(startPos:Lerp(targetPos, i / 10))
-			task.wait(0.025)
-		end
-		if Root and Root.Parent then Root.CFrame = CFrame.new(targetPos) end
-		isTeleporting = false
-		playToggleSound(true)
-	end)
-end
-
-UserInputService.JumpRequest:Connect(function()
-	if infinityJumpEnabled and Humanoid then
-		Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-	end
-end)
-
-RunService.Heartbeat:Connect(function()
-	if Humanoid and antiFreezeEnabled and Humanoid.WalkSpeed < 16 then
-		Humanoid.WalkSpeed = 16
-	end
-end)
-
 local function RemoveHitbox(char)
 	if not char then return end
 	local old = char:FindFirstChild("CH_VisibleHitbox")
@@ -1297,11 +1166,11 @@ local function isEnemyUnderCrosshair()
 				local hum = plr.Character:FindFirstChildOfClass("Humanoid")
 				if hrp and hum and hum.Health > 0 then
 					local dist = (Root.Position - hrp.Position).Magnitude
-					if dist <= (HitboxSize * 0.75) then
+					if dist <= (HitboxSize * 1.1) then
 						local cam2 = workspace.CurrentCamera
 						if cam2 then
 							local dir = (hrp.Position - cam2.CFrame.Position).Unit
-							if cam2.CFrame.LookVector:Dot(dir) > 0.75 then return true end
+							if cam2.CFrame.LookVector:Dot(dir) > triggerPrecision then return true end
 						end
 					end
 				end
@@ -1331,7 +1200,7 @@ end
 RunService.RenderStepped:Connect(function()
 	if not triggerbotEnabled then return end
 	local now = os.clock()
-	if now - lastTriggerShot < 0.08 then return end
+	if now - lastTriggerShot < triggerDelay then return end
 	if isEnemyUnderCrosshair() then
 		lastTriggerShot = now
 		clickMouse()
@@ -1429,8 +1298,6 @@ closeForever.MouseButton1Click:Connect(function()
 	triggerbotEnabled = false
 	espEnabled = false
 	HitboxEnabled = false
-	infinityJumpEnabled = false
-	downClipEnabled = false
 	RemoveAllHitboxes()
 	gui:Destroy()
 end)
@@ -1445,14 +1312,12 @@ local function showPage(page, name, title, sub)
 		data.Label.TextColor3 = sel and Theme.Text or Theme.SubText
 		data.Indicator.Visible = sel
 	end
-	if name == "Teleport" then refreshPlayerList() end
 end
 
-triggerNav.MouseButton1Click:Connect(function() showPage(triggerPage, "Trigger", "Triggerbot", "Rápido + tecla") end)
+triggerNav.MouseButton1Click:Connect(function() showPage(triggerPage, "Trigger", "Triggerbot", "Rápido + precisión") end)
 espNav.MouseButton1Click:Connect(function() showPage(espPage, "ESP", "ESP Rojo", "Visual") end)
 hitboxNav.MouseButton1Click:Connect(function() showPage(hitboxPage, "Hitbox", "Hitbox", "Dentro del cuadro") end)
-playerNav.MouseButton1Click:Connect(function() showPage(playerPage, "Player", "Player", "Jump + Solo Bajar") end)
-tpNav.MouseButton1Click:Connect(function() showPage(tpPage, "Teleport", "Teleport", "Suave") end)
+graphicsNav.MouseButton1Click:Connect(function() showPage(graphicsPage, "Gráficos", "Gráficos", "Eliminar texturas") end)
 soundsNav.MouseButton1Click:Connect(function() showPage(soundsPage, "Sonidos", "Sonidos", "Salto / Correr / Kill") end)
 menuNav.MouseButton1Click:Connect(function() showPage(menuPage, "Menú", "Configuración", "Panel + teclas") end)
 
@@ -1467,14 +1332,7 @@ UserInputService.InputBegan:Connect(function(input, processed)
 		if waitingMenuKey and input.KeyCode ~= Enum.KeyCode.Unknown then
 			MenuKey = input.KeyCode waitingMenuKey = false menuKeyValue.Text = MenuKey.Name return
 		end
-		if waitingTeleportKey and input.KeyCode ~= Enum.KeyCode.Unknown then
-			TeleportKey = input.KeyCode waitingTeleportKey = false tpKeyValue.Text = TeleportKey.Name return
-		end
-		if waitingDownClipKey and input.KeyCode ~= Enum.KeyCode.Unknown then
-			DownClipKey = input.KeyCode waitingDownClipKey = false downClipKeyValue.Text = DownClipKey.Name return
-		end
 	end
-	if input.KeyCode == DownClipKey then isHoldingDown = true end
 	if processed then return end
 	if input.UserInputType == Enum.UserInputType.MouseButton1 then markShotTarget() end
 	if input.KeyCode == TriggerKey then
@@ -1488,8 +1346,6 @@ UserInputService.InputBegan:Connect(function(input, processed)
 		hitboxStatus.Text = HitboxEnabled and "Activado" or "Desactivado"
 		playToggleSound(HitboxEnabled)
 		if HitboxEnabled then UpdateAllHitboxes() else RemoveAllHitboxes() end
-	elseif input.KeyCode == TeleportKey then
-		doTeleport()
 	elseif input.KeyCode == MenuKey then
 		if streamerMode then streamerMode = false setMenuVisible(true, false)
 		else setMenuVisible(not menu.Visible, false) end
@@ -1497,7 +1353,6 @@ UserInputService.InputBegan:Connect(function(input, processed)
 end)
 
 UserInputService.InputEnded:Connect(function(input)
-	if input.KeyCode == DownClipKey then isHoldingDown = false end
 	if input.UserInputType == Enum.UserInputType.MouseButton1 then
 		draggingMenu = false
 		activeSlider = nil
@@ -1521,10 +1376,35 @@ UserInputService.InputChanged:Connect(function(input)
 	end
 end)
 
-showPage(triggerPage, "Trigger", "Triggerbot", "Rápido + tecla")
-refreshPlayerList()
-task.wait(1.0)
+showPage(triggerPage, "Trigger", "Triggerbot", "Rápido + precisión")
+
+local function destroyLoading()
+	pcall(function()
+		if loadingGui then
+			loadingGui.Enabled = false
+			loadingGui:Destroy()
+			loadingGui = nil
+		end
+	end)
+	for _, parent in ipairs({
+		(gethui and gethui()) or nil,
+		game:GetService("CoreGui"),
+		PlayerGui,
+	}) do
+		if parent then
+			for _, child in ipairs(parent:GetChildren()) do
+				if child.Name == "CH_Loading" then
+					pcall(function() child:Destroy() end)
+				end
+			end
+		end
+	end
+end
+
 menu.Visible = true
-if loadingGui and loadingGui.Parent then loadingGui:Destroy() end
+destroyLoading()
+task.defer(destroyLoading)
+task.delay(0.4, destroyLoading)
+
 if LocalPlayer.Character then applyDefaultSoundReplace(LocalPlayer.Character) end
-print("😈 CH PC | Trigger rapido + Teclas + Sonidos limpios | CARGADO")
+print("😈 CH PC | CARGADO")
