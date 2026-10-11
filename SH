@@ -240,8 +240,8 @@ local HitboxKey = Enum.KeyCode.H
 local triggerbotEnabled = false
 local lastTriggerShot = 0
 local ignoreFriends = true
-local triggerDelay = 0.03
-local triggerPrecision = 0.25
+local triggerDelay = 0.005
+local triggerPrecision = 0.08
 
 local espEnabled = false
 local espNames = true
@@ -429,19 +429,22 @@ function applyDefaultSoundReplace(char)
 	end
 end
 
--- Mantener mute/default del correr en mi personaje
-RunService.Heartbeat:Connect(function()
-	if not Character or not Root then return end
-	local run = Root:FindFirstChild("Running")
-	if run and run:IsA("Sound") then
-		if runMuteEnabled then
-			if run.Volume ~= 0 then run.Volume = 0 end
-		else
-			-- Si el juego dejó el volumen en 0, restaurarlo para que se oigan otra vez
-			if run.Volume <= 0.01 then
-				run.Volume = (savedRunVolume > 0 and savedRunVolume) or 0.65
-			else
-				savedRunVolume = run.Volume
+-- Correr: solo cada 0.25s (menos lag que cada frame)
+task.spawn(function()
+	while true do
+		task.wait(0.25)
+		if Character and Root then
+			local run = Root:FindFirstChild("Running")
+			if run and run:IsA("Sound") then
+				if runMuteEnabled then
+					if run.Volume ~= 0 then run.Volume = 0 end
+				else
+					if run.Volume <= 0.01 then
+						run.Volume = (savedRunVolume > 0 and savedRunVolume) or 0.65
+					else
+						savedRunVolume = run.Volume
+					end
+				end
 			end
 		end
 	end
@@ -915,15 +918,15 @@ local triggerFilter = createCard(triggerPage, 90)
 createToggle(triggerFilter, 20, "👥  Ignorar amigos", "No apunta a tus amigos", true, function(v) ignoreFriends = v end)
 
 local triggerTune = createCard(triggerPage, 160)
-createSlider(triggerTune, 12, "Rapidez (ms)  ", 20, 150, 30, function(v)
+createSlider(triggerTune, 12, "Rapidez (ms)  ", 5, 120, 5, function(v)
 	-- más bajo = más rápido
 	triggerDelay = v / 1000
 end)
-createSlider(triggerTune, 80, "Precisión  ", 10, 90, 25, function(v)
+createSlider(triggerTune, 80, "Precisión  ", 5, 90, 8, function(v)
 	-- más bajo = más fácil dar (más descarado)
 	triggerPrecision = v / 100
 end)
-createLabel(triggerTune, "Default descarado: Rapidez 30 · Precisión 25", 18, 140, 360, 14, 10, Theme.Muted)
+createLabel(triggerTune, "Default MAX: Rapidez 5 · Precisión 8 (tipo hitbox)", 18, 140, 380, 14, 10, Theme.Muted)
 
 -- ESP
 local espCard = createCard(espPage, 100)
@@ -1159,18 +1162,24 @@ local function isEnemyUnderCrosshair()
 		if result and checkCharacter(resolveCharacter(result.Instance)) then return true end
 	end
 	if checkCharacter(resolveCharacter(Mouse.Target)) then return true end
-	if Root and HitboxEnabled and HitboxSize > 0 then
+	-- Siempre activo: rango tipo hitbox (no solo si Hitbox está on)
+	if Root then
+		local range = 14
+		if HitboxEnabled and HitboxSize > 0 then
+			range = math.max(14, HitboxSize * 1.35)
+		end
+		local cam2 = workspace.CurrentCamera
 		for _, plr in ipairs(Players:GetPlayers()) do
 			if shouldTarget(plr) and plr.Character then
 				local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
 				local hum = plr.Character:FindFirstChildOfClass("Humanoid")
 				if hrp and hum and hum.Health > 0 then
 					local dist = (Root.Position - hrp.Position).Magnitude
-					if dist <= (HitboxSize * 1.1) then
-						local cam2 = workspace.CurrentCamera
-						if cam2 then
-							local dir = (hrp.Position - cam2.CFrame.Position).Unit
-							if cam2.CFrame.LookVector:Dot(dir) > triggerPrecision then return true end
+					if dist <= range and cam2 then
+						local dir = (hrp.Position - cam2.CFrame.Position).Unit
+						-- FOV muy amplio = se siente como hitbox
+						if cam2.CFrame.LookVector:Dot(dir) > triggerPrecision then
+							return true
 						end
 					end
 				end
@@ -1184,20 +1193,18 @@ local function clickMouse()
 	markShotTarget()
 	if mouse1press then
 		mouse1press()
-		task.wait(0.01)
 		if mouse1release then mouse1release() end
 		return
 	end
 	pcall(function()
 		local vim = game:GetService("VirtualInputManager")
 		vim:SendMouseButtonEvent(0, 0, 0, true, game, 0)
-		task.wait(0.01)
 		vim:SendMouseButtonEvent(0, 0, 0, false, game, 0)
 	end)
 end
 
--- Trigger RAPIDO
-RunService.RenderStepped:Connect(function()
+-- Trigger RAPIDO (Heartbeat = menos lag que RenderStepped)
+RunService.Heartbeat:Connect(function()
 	if not triggerbotEnabled then return end
 	local now = os.clock()
 	if now - lastTriggerShot < triggerDelay then return end
@@ -1269,7 +1276,7 @@ task.spawn(function()
 				end
 			end
 		end
-		task.wait(0.35)
+		task.wait(espEnabled and 0.5 or 0.8)
 	end
 end)
 
