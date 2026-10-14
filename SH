@@ -240,7 +240,7 @@ local HitboxKey = Enum.KeyCode.H
 local triggerbotEnabled = false
 local lastTriggerShot = 0
 local ignoreFriends = true
-local lastTriggerDelay = 0.05
+local lastTriggerDelay = 0.08
 
 
 local espEnabled = false
@@ -915,8 +915,15 @@ local triggerKeyValue = createKeyBind(triggerPage, "Tecla del Trigger", "Q", fun
 end)
 
 local triggerFilter = createCard(triggerPage, 90)
-createToggle(triggerFilter, 20, "👥  Ignorar amigos", "No apunta a tus amigos", true, function(v) ignoreFriends = v end)
+createToggle(triggerFilter, 20, "👥  Ignorar amigos", "No apunta a tus amigos", true, function(v)
+	ignoreFriends = v
+end)
 
+local triggerTune = createCard(triggerPage, 100)
+createSlider(triggerTune, 20, "Rapidez (ms)  ", 20, 150, 80, function(v)
+	lastTriggerDelay = v / 1000
+end)
+createLabel(triggerTune, "Default 80 · más bajo = más rápido", 18, 72, 360, 14, 10, Theme.Muted)
 
 -- ESP
 local espCard = createCard(espPage, 100)
@@ -1125,6 +1132,10 @@ end
 local function shouldTarget(plr)
 	if not plr or plr == LocalPlayer then return false end
 	if isFriend(plr) then return false end
+	-- Team oficial de Roblox (solo si existe de verdad)
+	if LocalPlayer.Team ~= nil and plr.Team ~= nil and LocalPlayer.Team == plr.Team then
+		return false
+	end
 	return true
 end
 
@@ -1132,65 +1143,52 @@ local function isEnemyUnderCrosshair()
 	local function resolveCharacter(hit)
 		if not hit then return nil end
 		if hit.Name == "CH_VisibleHitbox" then return hit.Parent end
-		local model = hit:FindFirstAncestorOfClass("Model")
-		if model and model:FindFirstChildOfClass("Humanoid") then return model end
-		return nil
+		return hit:FindFirstAncestorOfClass("Model")
 	end
-
 	local function checkCharacter(character)
 		if not character then return false end
 		local humanoid = character:FindFirstChildOfClass("Humanoid")
 		if not humanoid or humanoid.Health <= 0 then return false end
-		return shouldTarget(Players:GetPlayerFromCharacter(character))
+		local player = Players:GetPlayerFromCharacter(character)
+		return shouldTarget(player)
 	end
-
 	local cam = workspace.CurrentCamera
-	local params = RaycastParams.new()
-	params.FilterType = Enum.RaycastFilterType.Exclude
-	if Character then params.FilterDescendantsInstances = {Character} end
-	params.IgnoreWater = true
-
-	-- Cursor libre: solo si el mouse realmente toca al rival
-	if checkCharacter(resolveCharacter(Mouse.Target)) then return true end
-
 	if cam then
-		-- Ray desde el CURSOR
-		local mousePos = UserInputService:GetMouseLocation()
-		local mouseRay = cam:ViewportPointToRay(mousePos.X, mousePos.Y)
-		local r1 = workspace:Raycast(mouseRay.Origin, mouseRay.Direction * 2000, params)
-		if r1 and checkCharacter(resolveCharacter(r1.Instance)) then return true end
-
-		-- Ray desde el CENTRO (primera persona)
 		local vp = cam.ViewportSize
-		local centerRay = cam:ViewportPointToRay(vp.X / 2, vp.Y / 2)
-		local r2 = workspace:Raycast(centerRay.Origin, centerRay.Direction * 2000, params)
-		if r2 and checkCharacter(resolveCharacter(r2.Instance)) then return true end
+		local ray = cam:ViewportPointToRay(vp.X / 2, vp.Y / 2)
+		local params = RaycastParams.new()
+		params.FilterType = Enum.RaycastFilterType.Exclude
+		if Character then params.FilterDescendantsInstances = {Character} end
+		params.IgnoreWater = true
+		local result = workspace:Raycast(ray.Origin, ray.Direction * 2000, params)
+		if result and checkCharacter(resolveCharacter(result.Instance)) then return true end
 	end
-
-	-- Dentro del hitbox expandido (solo si hitbox está activo)
-	if Root and HitboxEnabled and HitboxSize > 0 and cam then
+	if checkCharacter(resolveCharacter(Mouse.Target)) then return true end
+	if Root and HitboxEnabled and HitboxSize > 0 then
 		for _, plr in ipairs(Players:GetPlayers()) do
 			if shouldTarget(plr) and plr.Character then
 				local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
 				local hum = plr.Character:FindFirstChildOfClass("Humanoid")
 				if hrp and hum and hum.Health > 0 then
 					local dist = (Root.Position - hrp.Position).Magnitude
-					if dist <= (HitboxSize * 0.85) then
-						local dir = (hrp.Position - cam.CFrame.Position).Unit
-						if cam.CFrame.LookVector:Dot(dir) > 0.72 then
-							return true
+					if dist <= (HitboxSize * 0.75) then
+						local cam2 = workspace.CurrentCamera
+						if cam2 then
+							local dir = (hrp.Position - cam2.CFrame.Position).Unit
+							if cam2.CFrame.LookVector:Dot(dir) > 0.75 then
+								return true
+							end
 						end
 					end
 				end
 			end
 		end
 	end
-
 	return false
 end
 
 local function clickMouse()
-	markShotTarget()
+	if markShotTarget then pcall(markShotTarget) end
 	if mouse1press then
 		mouse1press()
 		task.wait(0.01)
@@ -1215,8 +1213,6 @@ RunService.RenderStepped:Connect(function()
 	end
 end)
 
--- ESP ROJO
--- ESP ROJO
 -- ESP ROJO
 task.spawn(function()
 	while gui.Parent do
