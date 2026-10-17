@@ -915,7 +915,7 @@ local triggerKeyValue = createKeyBind(triggerPage, "Tecla del Trigger", "Q", fun
 end)
 
 local triggerFilter = createCard(triggerPage, 90)
-createToggle(triggerFilter, 20, "👥  Ignorar amigos", "No apunta a tus amigos", true, function(v)
+createToggle(triggerFilter, 20, "👥  Ignorar equipo / amigos", "Team + Equipo + amigos", true, function(v)
 	ignoreFriends = v
 end)
 
@@ -1031,10 +1031,41 @@ local menuKeyValue = createKeyBind(menuPage, "Tecla del menú", "X", function(lb
 end)
 
 local menuControls = createCard(menuPage, 100)
-createToggle(menuControls, 20, "📺  Modo Streamer", "Oculta el panel", false, function(on)
+local function hideAllVisuals()
+	menu.Visible = false
+	if floatingButton then floatingButton.Visible = false end
+	for plr, data in pairs(ESP) do
+		if data.highlight then pcall(function() data.highlight:Destroy() end) end
+		if data.billboard then pcall(function() data.billboard:Destroy() end) end
+		ESP[plr] = nil
+	end
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr.Character then
+			local hb = plr.Character:FindFirstChild("CH_VisibleHitbox")
+			if hb then
+				hb.Transparency = 1
+				hb.LocalTransparencyModifier = 1
+			end
+		end
+	end
+	-- por si quedan highlights sueltos en el gui
+	for _, ch in ipairs(gui:GetChildren()) do
+		if ch:IsA("Highlight") or ch:IsA("BillboardGui") then
+			pcall(function() ch:Destroy() end)
+		end
+	end
+end
+
+createToggle(menuControls, 20, "📺  Modo Streamer / Grabar", "Oculta menú + ESP + hitbox (TikTok/Live)", false, function(on)
 	streamerMode = on
-	if on then menu.Visible = false end
+	if on then
+		hideAllVisuals()
+	else
+		if HitboxEnabled then UpdateAllHitboxes() end
+	end
 end)
+
+
 
 local closeCard = createCard(menuPage, 90)
 local closeForever = Instance.new("TextButton")
@@ -1067,7 +1098,7 @@ local function CreateHitbox(char)
 	visual.Name = "CH_VisibleHitbox"
 	visual.Size = Vector3.new(HitboxSize, HitboxSize, HitboxSize)
 	visual.CFrame = hrp.CFrame
-	visual.Transparency = HitboxVisible and 0.65 or 1
+	visual.Transparency = (HitboxVisible and not streamerMode) and 0.65 or 1
 	visual.Color = Color3.fromRGB(40, 40, 45)
 	visual.Material = Enum.Material.ForceField
 	visual.Anchored = false
@@ -1123,21 +1154,132 @@ end
 for _, plr in ipairs(Players:GetPlayers()) do SetupPlayer(plr) end
 Players.PlayerAdded:Connect(SetupPlayer)
 
+local friendCache, friendCacheTime = {}, {}
+-- Slot del hotbar manda: 1 = cuchillo (bloqueado), 2-9 = arma (OK)
+local lastHotbarSlot = 1 -- al entrar asumimos cuchillo / bloqueado
+
+local hotbarKeys = {
+	[Enum.KeyCode.One] = 1,
+	[Enum.KeyCode.Two] = 2,
+	[Enum.KeyCode.Three] = 3,
+	[Enum.KeyCode.Four] = 4,
+	[Enum.KeyCode.Five] = 5,
+	[Enum.KeyCode.Six] = 6,
+	[Enum.KeyCode.Seven] = 7,
+	[Enum.KeyCode.Eight] = 8,
+	[Enum.KeyCode.Nine] = 9,
+	[Enum.KeyCode.Zero] = 0,
+}
+
+local function toolLooksLikeKnife(tool)
+	if not tool then return true end
+	local n = string.lower(tool.Name)
+	if n:find("knife") or n:find("cuchillo") or n:find("blade")
+		or n:find("dagger") or n:find("melee") or n:find("sword")
+		or n:find("bat") then
+		return true
+	end
+	return false
+end
+
+UserInputService.InputBegan:Connect(function(input, processed)
+	local slot = hotbarKeys[input.KeyCode]
+	if slot == nil then return end
+	lastHotbarSlot = slot
+end)
+
+local function bindTool(tool)
+	if not tool or not tool:IsA("Tool") then return end
+	if tool:GetAttribute("CH_KnifeBound") then return end
+	tool:SetAttribute("CH_KnifeBound", true)
+	tool.Equipped:Connect(function()
+		-- si el nombre es cuchillo, forzar slot 1
+		if toolLooksLikeKnife(tool) then
+			lastHotbarSlot = 1
+		end
+	end)
+end
+
+local function bindAllTools()
+	for _, t in ipairs(LocalPlayer.Backpack:GetChildren()) do
+		bindTool(t)
+	end
+	if Character then
+		for _, t in ipairs(Character:GetChildren()) do
+			bindTool(t)
+		end
+	end
+end
+
+LocalPlayer.Backpack.ChildAdded:Connect(function(ch)
+	if ch:IsA("Tool") then bindTool(ch) end
+end)
+
+local function hookCharTools(char)
+	lastHotbarSlot = 1
+	char.ChildAdded:Connect(function(ch)
+		if ch:IsA("Tool") then bindTool(ch) end
+	end)
+	for _, t in ipairs(char:GetChildren()) do
+		bindTool(t)
+	end
+end
+if LocalPlayer.Character then hookCharTools(LocalPlayer.Character) end
+LocalPlayer.CharacterAdded:Connect(hookCharTools)
+task.defer(bindAllTools)
+
+-- true = NO disparar
+local function isHoldingKnife()
+	-- tecla 1 siempre bloquea, aunque el nombre del tool sea raro
+	if lastHotbarSlot == 1 then
+		return true
+	end
+	if not Character then return true end
+	local tool = Character:FindFirstChildOfClass("Tool")
+	if not tool then return true end
+	if toolLooksLikeKnife(tool) then return true end
+	return false
+end
+
 local function isFriend(plr)
 	if not ignoreFriends or not plr then return false end
-	local ok, res = pcall(function() return LocalPlayer:IsFriendsWith(plr.UserId) end)
-	return ok and res
+	local id = plr.UserId
+	local now = os.clock()
+	if friendCacheTime[id] and now - friendCacheTime[id] < 10 then
+		return friendCache[id] == true
+	end
+	local ok, res = pcall(function() return LocalPlayer:IsFriendsWith(id) end)
+	friendCache[id] = ok and res or false
+	friendCacheTime[id] = now
+	return friendCache[id]
 end
 
 local function shouldTarget(plr)
 	if not plr or plr == LocalPlayer then return false end
 	if isFriend(plr) then return false end
-	-- Team oficial de Roblox (solo si existe de verdad)
-	if LocalPlayer.Team ~= nil and plr.Team ~= nil and LocalPlayer.Team == plr.Team then
+	-- Team oficial Roblox
+	local myTeam, theirTeam = LocalPlayer.Team, plr.Team
+	if myTeam ~= nil and theirTeam ~= nil and myTeam == theirTeam then
+		return false
+	end
+	-- Atributo Equipo (si el juego lo usa)
+	local myEq = LocalPlayer:GetAttribute("Equipo")
+	local theirEq = plr:GetAttribute("Equipo")
+	if myEq ~= nil and theirEq ~= nil and myEq == theirEq then
+		return false
+	end
+	-- TeamColor como fallback
+	if LocalPlayer.TeamColor and plr.TeamColor
+		and LocalPlayer.TeamColor ~= BrickColor.new("White")
+		and LocalPlayer.TeamColor == plr.TeamColor then
 		return false
 	end
 	return true
 end
+
+local rayParams = RaycastParams.new()
+rayParams.FilterType = Enum.RaycastFilterType.Exclude
+rayParams.IgnoreWater = true
 
 local function isEnemyUnderCrosshair()
 	local function resolveCharacter(hit)
@@ -1149,22 +1291,25 @@ local function isEnemyUnderCrosshair()
 		if not character then return false end
 		local humanoid = character:FindFirstChildOfClass("Humanoid")
 		if not humanoid or humanoid.Health <= 0 then return false end
-		local player = Players:GetPlayerFromCharacter(character)
-		return shouldTarget(player)
+		return shouldTarget(Players:GetPlayerFromCharacter(character))
 	end
+
+	if checkCharacter(resolveCharacter(Mouse.Target)) then return true end
+
 	local cam = workspace.CurrentCamera
 	if cam then
+		if Character then
+			rayParams.FilterDescendantsInstances = {Character}
+		else
+			rayParams.FilterDescendantsInstances = {}
+		end
 		local vp = cam.ViewportSize
 		local ray = cam:ViewportPointToRay(vp.X / 2, vp.Y / 2)
-		local params = RaycastParams.new()
-		params.FilterType = Enum.RaycastFilterType.Exclude
-		if Character then params.FilterDescendantsInstances = {Character} end
-		params.IgnoreWater = true
-		local result = workspace:Raycast(ray.Origin, ray.Direction * 2000, params)
+		local result = workspace:Raycast(ray.Origin, ray.Direction * 1500, rayParams)
 		if result and checkCharacter(resolveCharacter(result.Instance)) then return true end
 	end
-	if checkCharacter(resolveCharacter(Mouse.Target)) then return true end
-	if Root and HitboxEnabled and HitboxSize > 0 then
+
+	if Root and HitboxEnabled and HitboxSize > 0 and cam then
 		for _, plr in ipairs(Players:GetPlayers()) do
 			if shouldTarget(plr) and plr.Character then
 				local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
@@ -1172,12 +1317,9 @@ local function isEnemyUnderCrosshair()
 				if hrp and hum and hum.Health > 0 then
 					local dist = (Root.Position - hrp.Position).Magnitude
 					if dist <= (HitboxSize * 0.75) then
-						local cam2 = workspace.CurrentCamera
-						if cam2 then
-							local dir = (hrp.Position - cam2.CFrame.Position).Unit
-							if cam2.CFrame.LookVector:Dot(dir) > 0.75 then
-								return true
-							end
+						local dir = (hrp.Position - cam.CFrame.Position).Unit
+						if cam.CFrame.LookVector:Dot(dir) > 0.75 then
+							return true
 						end
 					end
 				end
@@ -1189,22 +1331,21 @@ end
 
 local function clickMouse()
 	if markShotTarget then pcall(markShotTarget) end
-	if mouse1press then
+	if mouse1press and mouse1release then
 		mouse1press()
-		task.wait(0.01)
-		if mouse1release then mouse1release() end
+		mouse1release()
 		return
 	end
 	pcall(function()
 		local vim = game:GetService("VirtualInputManager")
 		vim:SendMouseButtonEvent(0, 0, 0, true, game, 0)
-		task.wait(0.01)
 		vim:SendMouseButtonEvent(0, 0, 0, false, game, 0)
 	end)
 end
 
-RunService.RenderStepped:Connect(function()
+RunService.Heartbeat:Connect(function()
 	if not triggerbotEnabled then return end
+	if isHoldingKnife() then return end -- tecla 1 / cuchillo: no disparar
 	local now = os.clock()
 	if now - lastTriggerShot < lastTriggerDelay then return end
 	if isEnemyUnderCrosshair() then
@@ -1216,7 +1357,7 @@ end)
 -- ESP ROJO
 task.spawn(function()
 	while gui.Parent do
-		if espEnabled then
+		if espEnabled and not streamerMode then
 			for _, plr in ipairs(Players:GetPlayers()) do
 				if shouldTarget(plr) and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
 					if not ESP[plr] or ESP[plr].character ~= plr.Character then
@@ -1275,7 +1416,14 @@ task.spawn(function()
 				end
 			end
 		end
-		task.wait(espEnabled and 0.5 or 0.8)
+		if streamerMode then
+			for plr, data in pairs(ESP) do
+				if data.highlight then data.highlight:Destroy() end
+				if data.billboard then data.billboard:Destroy() end
+				ESP[plr] = nil
+			end
+		end
+		task.wait((espEnabled and not streamerMode) and 0.5 or 0.8)
 	end
 end)
 
@@ -1289,6 +1437,15 @@ floatingButton.TextSize = 22
 floatingButton.Visible = false
 floatingButton.Parent = gui
 addCorner(floatingButton, 27)
+
+task.spawn(function()
+	while gui.Parent do
+		if streamerMode then
+			hideAllVisuals()
+		end
+		task.wait(0.35)
+	end
+end)
 
 local function setMenuVisible(vis, showFloat)
 	if menuClosedForever then return end
