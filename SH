@@ -262,7 +262,13 @@ local runMuteEnabled = false
 local jumpVolume = 0.85
 local killVolume = 1.0
 local JUMP_SOUND_ID = "rbxassetid://109397400639910"
-local KILL_SOUND_ID = "rbxassetid://14535092250"
+local KILL_SOUNDS = {
+	{ name = "CH Classic", id = "rbxassetid://14535092250" },
+	{ name = "Balloon Boy Laugh", id = "rbxassetid://6325779988" },
+	{ name = "Exe Laugh", id = "rbxassetid://7337298420" },
+}
+local selectedKillSound = 1 -- CH Classic por defecto
+local KILL_SOUND_ID = KILL_SOUNDS[selectedKillSound].id
 local lastJumpSound = 0
 local lastShotTime = 0
 local lastShotTarget = nil
@@ -349,51 +355,93 @@ end
 
 local savedRunVolume = 0.65
 
-local function muteGameDeathSounds(deadChar)
-	local keywords = {"death", "die", "kill", "elim", "dead", "muerte", "oof", "lose"}
-	local function silence(s)
-		if s and s:IsA("Sound") then
-			pcall(function()
-				s.Volume = 0
-				s:Stop()
-			end)
-		end
+local killMuteUntil = 0
+local KEYWORDS_DEATH = {
+	"death", "die", "kill", "elim", "dead", "muerte", "oof", "lose",
+	"wasted", "eliminat", "defeat", "ko", "down", "slay", "frag", "victim"
+}
+
+local function isOurSound(s)
+	if not s then return true end
+	if s.Parent == gui then return true end
+	local n = tostring(s.Name)
+	if n:find("^CH_") or n:find("CH_Jump") or n:find("CH_Kill") then return true end
+	-- no silenciar nuestros kill IDs
+	local sid = tostring(s.SoundId)
+	for _, info in ipairs(KILL_SOUNDS) do
+		if sid:find(info.id:gsub("rbxassetid://", "")) then return true end
 	end
-	local function scan(root)
+	return false
+end
+
+local function silenceSound(s)
+	if not s or not s:IsA("Sound") then return end
+	if isOurSound(s) then return end
+	pcall(function()
+		s.Volume = 0
+		s:Stop()
+		s.Playing = false
+	end)
+end
+
+local function soundLooksLikeDeath(s)
+	local n = string.lower(tostring(s.Name) .. " " .. tostring(s.SoundId))
+	for _, kw in ipairs(KEYWORDS_DEATH) do
+		if n:find(kw) then return true end
+	end
+	return false
+end
+
+local function muteGameDeathSounds(deadChar)
+	-- ligero: solo personaje muerto + hijos de SoundService (sin scan de workspace)
+	local function scanLight(root)
 		if not root then return end
-		for _, d in ipairs(root:GetDescendants()) do
+		for _, d in ipairs(root:GetChildren()) do
 			if d:IsA("Sound") then
-				local n = string.lower(d.Name .. " " .. tostring(d.SoundId))
-				for _, kw in ipairs(keywords) do
-					if n:find(kw) then silence(d) break end
+				if soundLooksLikeDeath(d) or d.Playing then
+					silenceSound(d)
 				end
 			end
 		end
+		-- un nivel más en el muerto
+		for _, d in ipairs(root:GetDescendants()) do
+			if d:IsA("Sound") and (soundLooksLikeDeath(d) or d.Playing) then
+				silenceSound(d)
+			end
+		end
 	end
-	if deadChar then scan(deadChar) end
-	pcall(function() scan(game:GetService("SoundService")) end)
-	if Character then scan(Character) end
+	pcall(function() scanLight(deadChar) end)
+	pcall(function()
+		local ss = game:GetService("SoundService")
+		for _, d in ipairs(ss:GetChildren()) do
+			if d:IsA("Sound") and (soundLooksLikeDeath(d) or d.Playing) then
+				silenceSound(d)
+			end
+		end
+	end)
 end
 
--- Kill: suena el tuyo y se intenta callar el del juego
 local function playKillSfx(deadChar)
 	if not killSoundEnabled then return end
+	local soundId = (KILL_SOUNDS[selectedKillSound] and KILL_SOUNDS[selectedKillSound].id) or KILL_SOUND_ID
+
 	pcall(function()
 		local s = Instance.new("Sound")
-		s.SoundId = KILL_SOUND_ID
+		s.Name = "CH_Kill"
+		s.SoundId = soundId
 		s.Volume = math.clamp(killVolume, 0, 2)
 		s.Parent = gui
 		s:Play()
 		s.Ended:Connect(function() s:Destroy() end)
-		task.delay(3, function() if s and s.Parent then s:Destroy() end end)
+		task.delay(6, function() if s and s.Parent then s:Destroy() end end)
 	end)
+
+	-- mute ligero, pocas veces (sin lag)
 	task.spawn(function()
 		muteGameDeathSounds(deadChar)
-		task.wait(0.03)
+		task.wait(0.1)
 		muteGameDeathSounds(deadChar)
-		task.wait(0.08)
-		muteGameDeathSounds(deadChar)
-		task.wait(0.15)
+		task.wait(0.25)
 		muteGameDeathSounds(deadChar)
 	end)
 end
@@ -501,39 +549,98 @@ workspace.DescendantAdded:Connect(function(obj)
 	end)
 end)
 
-local function markShotTarget()
+local recentShotTargets = {} -- [Player] = os.clock()
+
+local function rememberTarget(plr)
+	if not plr or plr == LocalPlayer then return end
+	lastShotTarget = plr
 	lastShotTime = os.clock()
 	lastAnyShotTime = os.clock()
+	recentShotTargets[plr] = os.clock()
+end
+
+local function markShotTarget()
+	lastAnyShotTime = os.clock()
 	local cam = workspace.CurrentCamera
-	if not cam then return end
-	local vp = cam.ViewportSize
-	local ray = cam:ViewportPointToRay(vp.X / 2, vp.Y / 2)
-	local params = RaycastParams.new()
-	params.FilterType = Enum.RaycastFilterType.Exclude
-	if Character then params.FilterDescendantsInstances = {Character} end
-	local result = workspace:Raycast(ray.Origin, ray.Direction * 2000, params)
-	if result and result.Instance then
-		local model = result.Instance:FindFirstAncestorOfClass("Model")
+
+	-- 1) Mouse.Target (cursor libre)
+	if Mouse.Target then
+		local model = Mouse.Target:FindFirstAncestorOfClass("Model")
 		if model then
 			local plr = Players:GetPlayerFromCharacter(model)
-			if plr and plr ~= LocalPlayer then lastShotTarget = plr end
+			if plr then rememberTarget(plr) end
+		end
+	end
+
+	if not cam then return end
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	if Character then params.FilterDescendantsInstances = { Character } end
+	params.IgnoreWater = true
+
+	-- 2) Ray desde el cursor
+	local mousePos = UserInputService:GetMouseLocation()
+	local mouseRay = cam:ViewportPointToRay(mousePos.X, mousePos.Y)
+	local r1 = workspace:Raycast(mouseRay.Origin, mouseRay.Direction * 5000, params)
+	if r1 and r1.Instance then
+		local model = r1.Instance:FindFirstAncestorOfClass("Model")
+		if model then
+			local plr = Players:GetPlayerFromCharacter(model)
+			if plr then rememberTarget(plr) end
+		end
+	end
+
+	-- 3) Ray centro (primera persona / ADS)
+	local vp = cam.ViewportSize
+	local centerRay = cam:ViewportPointToRay(vp.X / 2, vp.Y / 2)
+	local r2 = workspace:Raycast(centerRay.Origin, centerRay.Direction * 5000, params)
+	if r2 and r2.Instance then
+		local model = r2.Instance:FindFirstAncestorOfClass("Model")
+		if model then
+			local plr = Players:GetPlayerFromCharacter(model)
+			if plr then rememberTarget(plr) end
 		end
 	end
 end
 
 local function wasMyKill(hum, deadPlayer)
-	local tag = hum:FindFirstChild("creator") or hum:FindFirstChild("Creator")
-	if tag then
-		local v = tag.Value
-		if v == LocalPlayer then return true end
-		if typeof(v) == "Instance" and v:IsA("Player") and v == LocalPlayer then return true end
-		if typeof(v) == "Instance" and v:IsA("Model") and Players:GetPlayerFromCharacter(v) == LocalPlayer then return true end
+	-- 1) creator tag del juego (la forma más fiable)
+	if hum then
+		for _, name in ipairs({ "creator", "Creator", "KillCreator", "LastHit", "attacker", "Attacker" }) do
+			local tag = hum:FindFirstChild(name)
+			if tag then
+				local v = tag.Value
+				if v == LocalPlayer then return true end
+				if typeof(v) == "Instance" then
+					if v:IsA("Player") and v == LocalPlayer then return true end
+					if v:IsA("Model") and Players:GetPlayerFromCharacter(v) == LocalPlayer then return true end
+					if v:IsA("ObjectValue") and v.Value == LocalPlayer then return true end
+				end
+				if tostring(v) == tostring(LocalPlayer.UserId) or tostring(v) == LocalPlayer.Name then
+					return true
+				end
+			end
+		end
+		-- atributos
+		for _, an in ipairs({ "creator", "Creator", "LastAttacker", "KilledBy" }) do
+			local av = hum:GetAttribute(an) or (deadPlayer and deadPlayer:GetAttribute(an))
+			if av ~= nil then
+				if av == LocalPlayer.UserId or av == LocalPlayer.Name or av == LocalPlayer then
+					return true
+				end
+			end
+		end
 	end
-	if deadPlayer and lastShotTarget == deadPlayer and (os.clock() - lastShotTime) < 6 then return true end
-	if (os.clock() - lastAnyShotTime) < 4 and Root and deadPlayer and deadPlayer.Character then
-		local dr = deadPlayer.Character:FindFirstChild("HumanoidRootPart")
-		if dr and (Root.Position - dr.Position).Magnitude < 180 then return true end
+
+	-- 2) Le diste a ESTE jugador hace poco (sirve de lejos, sin límite de distancia)
+	if deadPlayer and lastShotTarget == deadPlayer and (os.clock() - lastShotTime) < 10 then
+		return true
 	end
+	if deadPlayer and recentShotTargets[deadPlayer] and (os.clock() - recentShotTargets[deadPlayer]) < 10 then
+		return true
+	end
+
+	-- NO usamos "murió cerca mío" → eso hacía sonar kills del equipo
 	return false
 end
 
@@ -929,9 +1036,24 @@ createLabel(triggerTune, "Default 80 · más bajo = más rápido", 18, 72, 360, 
 local espCard = createCard(espPage, 100)
 createLabel(espCard, "👁  ESP ROJO", 18, 14, 250, 20, 14)
 local espStatus = createLabel(espCard, "Desactivado", 18, 42, 200, 16, 11, Theme.SubText)
+local function clearAllESP()
+	for plr, data in pairs(ESP) do
+		if data.highlight then pcall(function() data.highlight:Destroy() end) end
+		if data.billboard then pcall(function() data.billboard:Destroy() end) end
+		ESP[plr] = nil
+	end
+	for _, ch in ipairs(gui:GetChildren()) do
+		if ch:IsA("Highlight") or (ch:IsA("BillboardGui") and ch.Name ~= "CH_Status") then
+			-- no tocar UI del menu; highlights de ESP estan en gui
+			if ch:IsA("Highlight") then pcall(function() ch:Destroy() end) end
+		end
+	end
+end
+
 local espToggle = createToggle(espCard, 0, "", "", false, function(on)
 	espEnabled = on
 	espStatus.Text = on and "Activado" or "Desactivado"
+	if not on then clearAllESP() end
 	playToggleSound(on)
 end)
 espToggle.Button.Position = UDim2.new(1, -60, 0, 36)
@@ -998,7 +1120,44 @@ createToggle(soundsToggles, 120, "🔇  Silenciar correr", "Quita el correr solo
 	if v then runDefaultEnabled = false end
 	if Character then applyLocalRunSettings(Character) end
 end)
-createToggle(soundsToggles, 175, "💀  Kill", "Tu sonido + silencia el del juego", true, function(v) killSoundEnabled = v end)
+createToggle(soundsToggles, 175, "💀  Kill", "Suena en cada kill + silencia el del juego", true, function(v) killSoundEnabled = v end)
+
+-- Selector de sonido de kill (estilo lista)
+local killSelectCard = createCard(soundsPage, 200)
+createLabel(killSelectCard, "🎵  SONIDO DE KILL", 18, 12, 300, 18, 13)
+createLabel(killSelectCard, "Elige el sonido · silencia la muerte del juego", 18, 32, 380, 14, 10, Theme.SubText)
+
+local killSelectBtns = {}
+local function refreshKillSelect()
+	for i, btn in ipairs(killSelectBtns) do
+		local sel = (i == selectedKillSound)
+		btn.BackgroundColor3 = sel and Theme.Accent or Theme.Element
+		btn.TextColor3 = sel and Theme.White or Theme.Text
+	end
+end
+
+for i, info in ipairs(KILL_SOUNDS) do
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.new(1, -24, 0, 32)
+	btn.Position = UDim2.fromOffset(12, 52 + (i - 1) * 38)
+	btn.BackgroundColor3 = (i == selectedKillSound) and Theme.Accent or Theme.Element
+	btn.BorderSizePixel = 0
+	btn.Text = "  " .. info.name
+	btn.TextColor3 = (i == selectedKillSound) and Theme.White or Theme.Text
+	btn.Font = Enum.Font.GothamMedium
+	btn.TextSize = 12
+	btn.TextXAlignment = Enum.TextXAlignment.Left
+	btn.AutoButtonColor = false
+	btn.Parent = killSelectCard
+	addCorner(btn, 8)
+	btn.MouseButton1Click:Connect(function()
+		selectedKillSound = i
+		KILL_SOUND_ID = KILL_SOUNDS[i].id
+		refreshKillSelect()
+		playToggleSound(true)
+	end)
+	killSelectBtns[i] = btn
+end
 
 local soundsVol = createCard(soundsPage, 160)
 createSlider(soundsVol, 12, "Vol. Salto  ", 0, 100, 85, function(v) jumpVolume = v / 100 jumpSfx.Volume = jumpVolume end)
@@ -1135,11 +1294,10 @@ local function SetupPlayer(plr)
 		if hum then
 			local killPlayed = false
 			local function tryKill()
+				-- Suena en TODA muerte de otro jugador (tuyas + compañeros + lejos)
 				if killPlayed or not killSoundEnabled then return end
-				if wasMyKill(hum, plr) then
-					killPlayed = true
-					playKillSfx(char)
-				end
+				killPlayed = true
+				playKillSfx(char)
 			end
 			hum.Died:Connect(function() RemoveHitbox(char) tryKill() end)
 			hum.HealthChanged:Connect(function(hp)
@@ -1416,12 +1574,8 @@ task.spawn(function()
 				end
 			end
 		end
-		if streamerMode then
-			for plr, data in pairs(ESP) do
-				if data.highlight then data.highlight:Destroy() end
-				if data.billboard then data.billboard:Destroy() end
-				ESP[plr] = nil
-			end
+		if streamerMode or not espEnabled then
+			clearAllESP()
 		end
 		task.wait((espEnabled and not streamerMode) and 0.5 or 0.8)
 	end
