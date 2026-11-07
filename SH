@@ -233,31 +233,43 @@ print("😈 CH Lifetime Key | Acceso concedido")
 --==================================================
 -- VARIABLES
 --==================================================
-local MenuKey = Enum.KeyCode.X
+local MenuKey = Enum.KeyCode.Zero
 local TriggerKey = Enum.KeyCode.Q
 local HitboxKey = Enum.KeyCode.H
+local AimbotKey = Enum.KeyCode.Z
 
 local triggerbotEnabled = false
+local aimbotEnabled = false
+local aimFovCursor = 140
+local aimSmoothCursor = 0.35
+local aimOnShoot = true
+local aimOnAds = true
+local waitingAimbotKey = false
+local holdingM1 = false
+local holdingM2 = false
 local lastTriggerShot = 0
 local ignoreFriends = true
+local ignoreTeam = false -- desactivado: no fiable en este juego
 local lastTriggerDelay = 0.08
 
 
-local espEnabled = false
+local espEnabled = true
 local espNames = true
 local espHealth = true
 local espDistance = true
 local espBoxes = true
-local ESP_RED = Color3.fromRGB(255, 45, 45)
+local espSkeleton = true
+local espBox2D = true
+local ESP_RED = Color3.fromRGB(255, 255, 255) -- blanco
 
 local HitboxEnabled = false
 local HitboxVisible = true
 local HitboxSize = 5
 local lowTexturesEnabled = false
 
-local jumpSoundEnabled = true
-local killSoundEnabled = true
-local runDefaultEnabled = true
+local jumpSoundEnabled = false
+local killSoundEnabled = false
+local runDefaultEnabled = false
 local runMuteEnabled = false
 local jumpVolume = 0.85
 local killVolume = 1.0
@@ -273,6 +285,150 @@ local lastJumpSound = 0
 local lastShotTime = 0
 local lastShotTarget = nil
 local lastAnyShotTime = 0
+
+--==================== CONFIG GUARDADA (writefile/readfile) ====================
+local CONFIG_FILE = "CH_PC_Config_" .. tostring(LocalPlayer.UserId) .. ".json"
+local configLoaded = false
+local configSaveQueued = false
+
+local function keyToName(k)
+	if typeof(k) == "EnumItem" then return k.Name end
+	return tostring(k)
+end
+
+local function nameToKey(name)
+	if type(name) ~= "string" then return nil end
+	local ok, k = pcall(function() return Enum.KeyCode[name] end)
+	if ok and k then return k end
+	return nil
+end
+
+local function saveConfig()
+	if typeof(writefile) ~= "function" then
+		warn("[CH] writefile no disponible en este executor")
+		return false
+	end
+	local data = {
+		version = 2,
+		MenuKey = keyToName(MenuKey),
+		TriggerKey = keyToName(TriggerKey),
+		HitboxKey = keyToName(HitboxKey),
+		AimbotKey = keyToName(AimbotKey),
+		aimbotEnabled = aimbotEnabled,
+		aimFovCursor = aimFovCursor,
+		aimSmoothCursor = aimSmoothCursor,
+		aimOnShoot = aimOnShoot,
+		aimOnAds = aimOnAds,
+		lastTriggerDelay = lastTriggerDelay,
+		ignoreFriends = ignoreFriends,
+		ignoreTeam = ignoreTeam,
+		espEnabled = espEnabled,
+		espNames = espNames,
+		espHealth = espHealth,
+		espDistance = espDistance,
+		espBoxes = espBoxes,
+		espSkeleton = espSkeleton,
+		espBox2D = espBox2D,
+		HitboxEnabled = HitboxEnabled,
+		HitboxVisible = HitboxVisible,
+		HitboxSize = HitboxSize,
+		jumpSoundEnabled = jumpSoundEnabled,
+		killSoundEnabled = killSoundEnabled,
+		runDefaultEnabled = runDefaultEnabled,
+		runMuteEnabled = runMuteEnabled,
+		jumpVolume = jumpVolume,
+		killVolume = killVolume,
+		selectedKillSound = selectedKillSound,
+		lowTexturesEnabled = lowTexturesEnabled,
+	}
+	local ok, err = pcall(function()
+		writefile(CONFIG_FILE, HttpService:JSONEncode(data))
+	end)
+	if ok then
+		print("[CH] Config guardada → " .. CONFIG_FILE)
+		return true
+	end
+	warn("[CH] No se pudo guardar config: " .. tostring(err))
+	return false
+end
+
+local function queueSaveConfig()
+	if configSaveQueued then return end
+	configSaveQueued = true
+	task.delay(0.35, function()
+		configSaveQueued = false
+		saveConfig()
+	end)
+end
+
+local function loadConfig()
+	if typeof(readfile) ~= "function" then
+		warn("[CH] readfile no disponible")
+		return false
+	end
+	local exists = true
+	if typeof(isfile) == "function" then
+		local okE, res = pcall(isfile, CONFIG_FILE)
+		exists = okE and res == true
+	end
+	if not exists then
+		print("[CH] Sin config guardada (" .. CONFIG_FILE .. ")")
+		return false
+	end
+	local ok, raw = pcall(readfile, CONFIG_FILE)
+	if not ok or type(raw) ~= "string" or raw == "" then
+		warn("[CH] Error leyendo config")
+		return false
+	end
+	local ok2, data = pcall(function() return HttpService:JSONDecode(raw) end)
+	if not ok2 or type(data) ~= "table" then
+		warn("[CH] Config inválida")
+		return false
+	end
+
+	local mk = nameToKey(data.MenuKey); if mk then MenuKey = mk end
+	local tk = nameToKey(data.TriggerKey); if tk then TriggerKey = tk end
+	local hk = nameToKey(data.HitboxKey); if hk then HitboxKey = hk end
+	local ak = nameToKey(data.AimbotKey); if ak then AimbotKey = ak end
+	if data.aimbotEnabled ~= nil then aimbotEnabled = data.aimbotEnabled == true end
+	if type(data.aimFovCursor) == "number" then aimFovCursor = data.aimFovCursor end
+	if type(data.aimSmoothCursor) == "number" then aimSmoothCursor = data.aimSmoothCursor end
+	if data.aimOnShoot ~= nil then aimOnShoot = data.aimOnShoot == true end
+	if data.aimOnAds ~= nil then aimOnAds = data.aimOnAds == true end
+
+	if type(data.lastTriggerDelay) == "number" then
+		lastTriggerDelay = math.clamp(data.lastTriggerDelay, 0.02, 0.15)
+	end
+	if data.ignoreFriends ~= nil then ignoreFriends = data.ignoreFriends == true end
+	if data.ignoreTeam ~= nil then ignoreTeam = data.ignoreTeam == true end
+	if data.espEnabled ~= nil then espEnabled = data.espEnabled == true end
+	if data.espNames ~= nil then espNames = data.espNames == true end
+	if data.espHealth ~= nil then espHealth = data.espHealth == true end
+	if data.espDistance ~= nil then espDistance = data.espDistance == true end
+	if data.espBoxes ~= nil then espBoxes = data.espBoxes == true end
+	if data.espSkeleton ~= nil then espSkeleton = data.espSkeleton == true end
+	if data.espBox2D ~= nil then espBox2D = data.espBox2D == true end
+	if data.HitboxEnabled ~= nil then HitboxEnabled = data.HitboxEnabled == true end
+	if data.HitboxVisible ~= nil then HitboxVisible = data.HitboxVisible == true end
+	if type(data.HitboxSize) == "number" then HitboxSize = math.clamp(data.HitboxSize, 1, 40) end
+	if data.jumpSoundEnabled ~= nil then jumpSoundEnabled = data.jumpSoundEnabled == true end
+	if data.killSoundEnabled ~= nil then killSoundEnabled = data.killSoundEnabled == true end
+	if data.runDefaultEnabled ~= nil then runDefaultEnabled = data.runDefaultEnabled == true end
+	if data.runMuteEnabled ~= nil then runMuteEnabled = data.runMuteEnabled == true end
+	if type(data.jumpVolume) == "number" then jumpVolume = math.clamp(data.jumpVolume, 0, 2) end
+	if type(data.killVolume) == "number" then killVolume = math.clamp(data.killVolume, 0, 2) end
+	if type(data.selectedKillSound) == "number" then
+		selectedKillSound = math.clamp(math.floor(data.selectedKillSound), 1, #KILL_SOUNDS)
+		KILL_SOUND_ID = KILL_SOUNDS[selectedKillSound].id
+	end
+	if data.lowTexturesEnabled ~= nil then lowTexturesEnabled = data.lowTexturesEnabled == true end
+
+	configLoaded = true
+	print("[CH] Config cargada ← " .. CONFIG_FILE)
+	return true
+end
+
+loadConfig()
 
 local Character, Root, Humanoid
 local menuClosedForever = false
@@ -421,6 +577,8 @@ local function muteGameDeathSounds(deadChar)
 	end)
 end
 
+local _killSfxAt = {}
+
 local function playKillSfx(deadChar)
 	if not killSoundEnabled then return end
 	local soundId = (KILL_SOUNDS[selectedKillSound] and KILL_SOUNDS[selectedKillSound].id) or KILL_SOUND_ID
@@ -480,7 +638,7 @@ end
 -- Correr: solo cada 0.25s (menos lag que cada frame)
 task.spawn(function()
 	while true do
-		task.wait(0.25)
+		task.wait(0.5)
 		if Character and Root then
 			local run = Root:FindFirstChild("Running")
 			if run and run:IsA("Sound") then
@@ -768,12 +926,14 @@ local function createNav(name, icon, y)
 	return button
 end
 
-local triggerNav = createNav("Trigger", "🔫", 100)
-local espNav = createNav("ESP", "👁", 148)
-local hitboxNav = createNav("Hitbox", "🎯", 196)
-local graphicsNav = createNav("Gráficos", "🎨", 244)
-local soundsNav = createNav("Sonidos", "🔊", 292)
-local menuNav = createNav("Menú", "⚙", 340)
+local triggerNav = createNav("Trigger", "🔫", 92)
+local aimbotNav = createNav("Aimbot", "🎯", 136)
+local espNav = createNav("ESP", "👁", 180)
+local hitboxNav = createNav("Hitbox", "📦", 224)
+local graphicsNav = createNav("Gráficos", "🎨", 268)
+local soundsNav = createNav("Sonidos", "🔊", 312)
+local menuNav = createNav("Menú", "⚙", 356)
+local configNav = createNav("Config", "💾", 400)
 
 local content = Instance.new("Frame")
 content.Size = UDim2.new(1, -185, 1, -2)
@@ -855,8 +1015,10 @@ local triggerPage = createPage()
 local espPage = createPage()
 local hitboxPage = createPage()
 local graphicsPage = createPage()
+local aimbotPage = createPage()
 local soundsPage = createPage()
 local menuPage = createPage()
+local configPage = createPage()
 
 local function createCard(parent, height)
 	local card = Instance.new("Frame")
@@ -1015,74 +1177,413 @@ local triggerToggle = createToggle(triggerCard, 0, "", "", false, function(on)
 end)
 triggerToggle.Button.Position = UDim2.new(1, -60, 0, 36)
 
-local triggerKeyValue = createKeyBind(triggerPage, "Tecla del Trigger", "Q", function(lbl)
+local triggerKeyValue = createKeyBind(triggerPage, "Tecla del Trigger", TriggerKey.Name, function(lbl)
 	waitingTriggerKey = true
 	waitingMenuKey, waitingHitboxKey = false, false
 	lbl.Text = "..."
 end)
 
 local triggerFilter = createCard(triggerPage, 90)
-createToggle(triggerFilter, 20, "👥  Ignorar equipo / amigos", "Team + Equipo + amigos", true, function(v)
+createToggle(triggerFilter, 20, "👥  Ignorar amigos", "No apunta a amigos de Roblox", ignoreFriends, function(v)
 	ignoreFriends = v
+	queueSaveConfig()
 end)
+createLabel(triggerFilter, "Ignorar equipo quitado (el juego no manda team fiable)", 18, 68, 400, 16, 10, Theme.Muted)
 
 local triggerTune = createCard(triggerPage, 100)
-createSlider(triggerTune, 20, "Rapidez (ms)  ", 20, 150, 80, function(v)
+createSlider(triggerTune, 20, "Rapidez (ms)  ", 20, 150, math.floor(lastTriggerDelay * 1000 + 0.5), function(v)
 	lastTriggerDelay = v / 1000
+	queueSaveConfig()
 end)
 createLabel(triggerTune, "Default 80 · más bajo = más rápido", 18, 72, 360, 14, 10, Theme.Muted)
+
+
+-- AIMBOT CURSOR (mueve el mouse, NO la cámara)
+local aimCard = createCard(aimbotPage, 100)
+createLabel(aimCard, "🎯  AIMBOT CURSOR", 18, 14, 280, 20, 14)
+local aimStatus = createLabel(aimCard, "Desactivado", 18, 42, 200, 16, 11, Theme.SubText)
+local aimToggle = createToggle(aimCard, 0, "", "", aimbotEnabled, function(on)
+	aimbotEnabled = on
+	aimStatus.Text = on and "Activado" or "Desactivado"
+	playToggleSound(on)
+	queueSaveConfig()
+end)
+aimToggle.Button.Position = UDim2.new(1, -60, 0, 36)
+aimStatus.Text = aimbotEnabled and "Activado" or "Desactivado"
+
+local aimInfo = createCard(aimbotPage, 55)
+createLabel(aimInfo, "Cursor only · FOV en el mouse", 18, 16, 400, 20, 11, Theme.SubText)
+
+local aimKeyBind = createKeyBind(aimbotPage, "Tecla Aimbot", AimbotKey.Name, function(lbl)
+	waitingAimbotKey = true
+	waitingTriggerKey, waitingMenuKey, waitingHitboxKey = false, false, false
+	lbl.Text = "..."
+end)
+
+local aimWhen = createCard(aimbotPage, 140)
+createLabel(aimWhen, "Activar con mouse", 18, 10, 280, 18, 12)
+createToggle(aimWhen, 36, "Click izq (disparar)", "", aimOnShoot, function(v)
+	aimOnShoot = v
+	queueSaveConfig()
+end)
+createToggle(aimWhen, 90, "Click der (apuntar)", "", aimOnAds, function(v)
+	aimOnAds = v
+	queueSaveConfig()
+end)
+
+local aimTune = createCard(aimbotPage, 130)
+createSlider(aimTune, 12, "FOV cursor  ", 40, 350, aimFovCursor, function(v)
+	aimFovCursor = v
+	queueSaveConfig()
+end)
+createSlider(aimTune, 70, "Suavidad  ", 0, 90, math.floor(aimSmoothCursor * 100 + 0.5), function(v)
+	aimSmoothCursor = v / 100
+	queueSaveConfig()
+end)
+
+-- FOV circle en el CURSOR
+local aimFovCircle = Instance.new("Frame")
+aimFovCircle.Name = "AimFOV"
+aimFovCircle.BackgroundTransparency = 1
+aimFovCircle.AnchorPoint = Vector2.new(0.5, 0.5)
+aimFovCircle.Size = UDim2.fromOffset(aimFovCursor * 2, aimFovCursor * 2)
+aimFovCircle.Visible = false
+aimFovCircle.ZIndex = 100
+aimFovCircle.Parent = gui
+local aimFovStroke = Instance.new("UIStroke")
+aimFovStroke.Color = Color3.fromRGB(255, 255, 255)
+aimFovStroke.Thickness = 1.2
+aimFovStroke.Transparency = 0.25
+aimFovStroke.Parent = aimFovCircle
+Instance.new("UICorner", aimFovCircle).CornerRadius = UDim.new(1, 0)
+
+local function updateAimFovCircle()
+	if not aimFovCircle then return end
+	local show = aimbotEnabled and not streamerMode and not menuClosedForever
+	aimFovCircle.Visible = show
+	if not show then return end
+	local r = math.max(aimFovCursor, 10)
+	aimFovCircle.Size = UDim2.fromOffset(r * 2, r * 2)
+	local m = UserInputService:GetMouseLocation()
+	-- GetMouseLocation es topbar incluido; con IgnoreGuiInset el ScreenGui ya cubre
+	aimFovCircle.Position = UDim2.fromOffset(m.X, m.Y)
+end
 
 -- ESP
 local espCard = createCard(espPage, 100)
 createLabel(espCard, "👁  ESP ROJO", 18, 14, 250, 20, 14)
-local espStatus = createLabel(espCard, "Desactivado", 18, 42, 200, 16, 11, Theme.SubText)
+local espStatus = createLabel(espCard, espEnabled and "Activado" or "Desactivado", 18, 42, 200, 16, 11, Theme.SubText)
+-- ESP líneas (esqueleto / caja): ScreenGui (compatible) + Drawing si existe
+local drawFolder = Instance.new("Folder")
+drawFolder.Name = "CH_ESP_Draw"
+drawFolder.Parent = gui
+
+local function removeDrawLines(list)
+	if not list then return end
+	for _, line in ipairs(list) do
+		pcall(function()
+			if typeof(line) == "Instance" then
+				line:Destroy()
+			else
+				line.Visible = false
+				if line.Remove then line:Remove() end
+			end
+		end)
+	end
+end
+
+local function hideDrawLines(list)
+	if not list then return end
+	for _, line in ipairs(list) do
+		pcall(function()
+			if typeof(line) == "Instance" then
+				line.Visible = false
+			else
+				line.Visible = false
+			end
+		end)
+	end
+end
+
+local function newScreenLine()
+	local f = Instance.new("Frame")
+	f.Name = "Line"
+	f.BackgroundColor3 = ESP_RED
+	f.BorderSizePixel = 0
+	f.AnchorPoint = Vector2.new(0.5, 0.5)
+	f.Size = UDim2.fromOffset(0, 2)
+	f.Visible = false
+	f.ZIndex = 50
+	f.Parent = drawFolder
+	return f
+end
+
+local function setScreenLine(line, from, to)
+	if not line or not from or not to then
+		if line then line.Visible = false end
+		return
+	end
+	local dx = to.X - from.X
+	local dy = to.Y - from.Y
+	local len = math.sqrt(dx*dx + dy*dy)
+	if len < 1 then
+		line.Visible = false
+		return
+	end
+	line.Visible = true
+	line.BackgroundColor3 = ESP_RED
+	line.Size = UDim2.fromOffset(math.max(len, 1), 2)
+	line.Position = UDim2.fromOffset((from.X + to.X) * 0.5, (from.Y + to.Y) * 0.5)
+	line.Rotation = math.deg(math.atan2(dy, dx))
+end
+
+local function destroySkeleton(data)
+	if not data then return end
+	removeDrawLines(data.skelLines)
+	removeDrawLines(data.boxLines)
+	removeDrawLines(data.headLines)
+	data.skelLines = nil
+	data.boxLines = nil
+	data.headLines = nil
+	data.skelBones = nil
+end
+
 local function clearAllESP()
 	for plr, data in pairs(ESP) do
 		if data.highlight then pcall(function() data.highlight:Destroy() end) end
 		if data.billboard then pcall(function() data.billboard:Destroy() end) end
+		destroySkeleton(data)
 		ESP[plr] = nil
 	end
 	for _, ch in ipairs(gui:GetChildren()) do
-		if ch:IsA("Highlight") or (ch:IsA("BillboardGui") and ch.Name ~= "CH_Status") then
-			-- no tocar UI del menu; highlights de ESP estan en gui
-			if ch:IsA("Highlight") then pcall(function() ch:Destroy() end) end
+		if ch:IsA("Highlight") then
+			pcall(function() ch:Destroy() end)
+		end
+	end
+	if drawFolder then
+		for _, ch in ipairs(drawFolder:GetChildren()) do
+			pcall(function() ch:Destroy() end)
 		end
 	end
 end
 
-local espToggle = createToggle(espCard, 0, "", "", false, function(on)
+local R15_BONES = {
+	{"Head", "UpperTorso"}, {"UpperTorso", "LowerTorso"},
+	{"UpperTorso", "LeftUpperArm"}, {"LeftUpperArm", "LeftLowerArm"}, {"LeftLowerArm", "LeftHand"},
+	{"UpperTorso", "RightUpperArm"}, {"RightUpperArm", "RightLowerArm"}, {"RightLowerArm", "RightHand"},
+	{"LowerTorso", "LeftUpperLeg"}, {"LeftUpperLeg", "LeftLowerLeg"}, {"LeftLowerLeg", "LeftFoot"},
+	{"LowerTorso", "RightUpperLeg"}, {"RightUpperLeg", "RightLowerLeg"}, {"RightLowerLeg", "RightFoot"},
+}
+local R6_BONES = {
+	{"Head", "Torso"},
+	{"Torso", "Left Arm"}, {"Torso", "Right Arm"},
+	{"Torso", "Left Leg"}, {"Torso", "Right Leg"},
+}
+
+local function worldToScreen(cam, pos)
+	local v, onScreen = cam:WorldToViewportPoint(pos)
+	if v.Z <= 0 then return nil end
+	local vs = cam.ViewportSize
+	if v.X < -150 or v.Y < -150 or v.X > vs.X + 150 or v.Y > vs.Y + 150 then
+		return nil
+	end
+	return Vector2.new(v.X, v.Y), onScreen
+end
+
+local function updatePlayerDrawings(data)
+	if not data then return end
+	local char = data.character
+	if not char or not char.Parent then
+		hideDrawLines(data.skelLines)
+		hideDrawLines(data.boxLines)
+		hideDrawLines(data.headLines)
+		return
+	end
+	local hum = data.humanoid
+	if hum and hum.Health <= 0 then
+		hideDrawLines(data.skelLines)
+		hideDrawLines(data.boxLines)
+		hideDrawLines(data.headLines)
+		return
+	end
+	if streamerMode or not espEnabled then
+		hideDrawLines(data.skelLines)
+		hideDrawLines(data.boxLines)
+		hideDrawLines(data.headLines)
+		return
+	end
+
+	local cam = workspace.CurrentCamera
+	if not cam then
+		hideDrawLines(data.skelLines)
+		hideDrawLines(data.boxLines)
+		hideDrawLines(data.headLines)
+		return
+	end
+
+	-- ESQUELETO
+	if espSkeleton then
+		if not data.skelLines then
+			local bones = R15_BONES
+			if char:FindFirstChild("Torso") and not char:FindFirstChild("UpperTorso") then
+				bones = R6_BONES
+			end
+			data.skelBones = bones
+			data.skelLines = {}
+			for _ = 1, #bones do
+				table.insert(data.skelLines, newScreenLine())
+			end
+		end
+		local bones = data.skelBones or R15_BONES
+		for i, pair in ipairs(bones) do
+			local line = data.skelLines[i]
+			local a = char:FindFirstChild(pair[1])
+			local b = char:FindFirstChild(pair[2])
+			local sa = (a and a:IsA("BasePart")) and worldToScreen(cam, a.Position) or nil
+			local sb = (b and b:IsA("BasePart")) and worldToScreen(cam, b.Position) or nil
+			setScreenLine(line, sa, sb)
+		end
+		-- Cabeza (cruz)
+		local head = char:FindFirstChild("Head")
+		if head and head:IsA("BasePart") then
+			if not data.headLines then
+				data.headLines = { newScreenLine(), newScreenLine() }
+			end
+			local hp = worldToScreen(cam, head.Position)
+			if hp then
+				local s = 6
+				setScreenLine(data.headLines[1], Vector2.new(hp.X - s, hp.Y), Vector2.new(hp.X + s, hp.Y))
+				setScreenLine(data.headLines[2], Vector2.new(hp.X, hp.Y - s), Vector2.new(hp.X, hp.Y + s))
+			else
+				hideDrawLines(data.headLines)
+			end
+		else
+			hideDrawLines(data.headLines)
+		end
+	else
+		hideDrawLines(data.skelLines)
+		hideDrawLines(data.headLines)
+	end
+
+	-- CAJA 2D (más chica)
+	if espBox2D then
+		if not data.boxLines then
+			data.boxLines = {}
+			for _ = 1, 4 do
+				table.insert(data.boxLines, newScreenLine())
+			end
+		end
+		local root = char:FindFirstChild("HumanoidRootPart")
+		local head = char:FindFirstChild("Head")
+		if root then
+			-- caja compacta basada en HRP + cabeza (no armas/accesorios)
+			local height = 5.2
+			local width = 2.2
+			local depth = 2.2
+			if head then
+				height = math.clamp((root.Position.Y - head.Position.Y) + 4.2, 4, 7)
+			end
+			local cf = root.CFrame
+			local hs = Vector3.new(width * 0.5, height * 0.5, depth * 0.5)
+			local corners = {}
+			for _, ox in ipairs({ -1, 1 }) do
+				for _, oy in ipairs({ -1, 1 }) do
+					for _, oz in ipairs({ -1, 1 }) do
+						local wp = (cf * CFrame.new(hs.X * ox, hs.Y * oy * 0.9, hs.Z * oz)).Position
+						local sp = worldToScreen(cam, wp)
+						if sp then table.insert(corners, sp) end
+					end
+				end
+			end
+			if #corners >= 2 then
+				local minX, minY = corners[1].X, corners[1].Y
+				local maxX, maxY = minX, minY
+				for _, p in ipairs(corners) do
+					if p.X < minX then minX = p.X end
+					if p.Y < minY then minY = p.Y end
+					if p.X > maxX then maxX = p.X end
+					if p.Y > maxY then maxY = p.Y end
+				end
+				local pts = {
+					Vector2.new(minX, minY), Vector2.new(maxX, minY),
+					Vector2.new(maxX, maxY), Vector2.new(minX, maxY),
+				}
+				local edges = {{1,2},{2,3},{3,4},{4,1}}
+				for i, e in ipairs(edges) do
+					setScreenLine(data.boxLines[i], pts[e[1]], pts[e[2]])
+				end
+			else
+				hideDrawLines(data.boxLines)
+			end
+		else
+			hideDrawLines(data.boxLines)
+		end
+	else
+		hideDrawLines(data.boxLines)
+	end
+end
+
+local espToggle = createToggle(espCard, 0, "", "", espEnabled, function(on)
 	espEnabled = on
 	espStatus.Text = on and "Activado" or "Desactivado"
 	if not on then clearAllESP() end
 	playToggleSound(on)
+	queueSaveConfig()
 end)
 espToggle.Button.Position = UDim2.new(1, -60, 0, 36)
 
-local espOptions = createCard(espPage, 210)
-createToggle(espOptions, 15, "Nombres", "Muestra el nombre", true, function(v) espNames = v end)
-createToggle(espOptions, 70, "Vida", "Muestra la vida", true, function(v) espHealth = v end)
-createToggle(espOptions, 125, "Distancia", "Muestra la distancia", true, function(v) espDistance = v end)
-createToggle(espOptions, 180, "Boxes", "Resalta en rojo", true, function(v) espBoxes = v end)
+local espInfoCard = createCard(espPage, 200)
+createLabel(espInfoCard, "📋  INFO DEL JUGADOR", 18, 10, 280, 18, 12)
+createToggle(espInfoCard, 36, "Nombres", "", espNames, function(v) espNames = v queueSaveConfig() end)
+createToggle(espInfoCard, 90, "Vida", "", espHealth, function(v) espHealth = v queueSaveConfig() end)
+createToggle(espInfoCard, 144, "Distancia", "", espDistance, function(v) espDistance = v queueSaveConfig() end)
+
+local espVisualCard = createCard(espPage, 220)
+createLabel(espVisualCard, "🦴  VISUAL", 18, 10, 280, 18, 12)
+createToggle(espVisualCard, 36, "Highlight", "", espBoxes, function(v)
+	espBoxes = v
+	clearAllESP()
+	queueSaveConfig()
+end)
+createToggle(espVisualCard, 90, "Esqueleto", "", espSkeleton, function(v)
+	espSkeleton = v
+	if not v then
+		for _, data in pairs(ESP) do
+			hideDrawLines(data.skelLines)
+			hideDrawLines(data.headLines)
+		end
+	end
+	queueSaveConfig()
+end)
+createToggle(espVisualCard, 144, "Caja", "", espBox2D, function(v)
+	espBox2D = v
+	if not v then
+		for _, data in pairs(ESP) do hideDrawLines(data.boxLines) end
+	end
+	queueSaveConfig()
+end)
 
 -- HITBOX
 local hitboxCard = createCard(hitboxPage, 100)
 createLabel(hitboxCard, "🎯  HITBOX", 18, 14, 250, 20, 14)
-local hitboxStatus = createLabel(hitboxCard, "Desactivado", 18, 42, 200, 16, 11, Theme.SubText)
-local hitboxToggle = createToggle(hitboxCard, 0, "", "", false, function(on)
+local hitboxStatus = createLabel(hitboxCard, HitboxEnabled and "Activado" or "Desactivado", 18, 42, 200, 16, 11, Theme.SubText)
+local hitboxToggle = createToggle(hitboxCard, 0, "", "", HitboxEnabled, function(on)
 	HitboxEnabled = on
 	hitboxStatus.Text = on and "Activado" or "Desactivado"
+	queueSaveConfig()
 	playToggleSound(on)
 	if on then UpdateAllHitboxes() else RemoveAllHitboxes() end
 end)
 hitboxToggle.Button.Position = UDim2.new(1, -60, 0, 36)
 
 local hitboxOptions = createCard(hitboxPage, 100)
-createToggle(hitboxOptions, 20, "👁  Mostrar Hitbox", "Visible / Invisible", true, function(v)
+createToggle(hitboxOptions, 20, "👁  Mostrar Hitbox", "Visible / Invisible", HitboxVisible, function(v)
 	HitboxVisible = v
 	if HitboxEnabled then UpdateAllHitboxes() end
+	queueSaveConfig()
 end)
 
-local hitboxKeyValue = createKeyBind(hitboxPage, "Tecla Hitbox", "H", function(lbl)
+local hitboxKeyValue = createKeyBind(hitboxPage, "Tecla Hitbox", HitboxKey.Name, function(lbl)
 	waitingHitboxKey = true
 	waitingMenuKey, waitingTriggerKey = false, false
 	lbl.Text = "..."
@@ -1092,6 +1593,7 @@ local hitboxConfig = createCard(hitboxPage, 120)
 createSlider(hitboxConfig, 20, "Tamaño  ", 0, 40, HitboxSize, function(v)
 	HitboxSize = v
 	if HitboxEnabled then UpdateAllHitboxes() end
+	queueSaveConfig()
 end)
 
 -- GRAFICOS
@@ -1109,18 +1611,20 @@ createLabel(soundsMain, "🔊  SONIDOS", 18, 14, 300, 20, 14)
 createLabel(soundsMain, "Salto en todos · Correr restaurable · Kill silencia juego", 18, 42, 400, 16, 10, Theme.SubText)
 
 local soundsToggles = createCard(soundsPage, 240)
-createToggle(soundsToggles, 10, "⬆  Salto", "Solo en ti", true, function(v) jumpSoundEnabled = v end)
-createToggle(soundsToggles, 65, "🏃  Correr default", "Sonido de Roblox (solo tú)", true, function(v)
+createToggle(soundsToggles, 10, "⬆  Salto", "Solo en ti", jumpSoundEnabled, function(v) jumpSoundEnabled = v queueSaveConfig() end)
+createToggle(soundsToggles, 65, "🏃  Correr default", "Sonido de Roblox (solo tú)", runDefaultEnabled, function(v)
 	runDefaultEnabled = v
 	if v then runMuteEnabled = false end
 	if Character then applyLocalRunSettings(Character) end
+	queueSaveConfig()
 end)
-createToggle(soundsToggles, 120, "🔇  Silenciar correr", "Quita el correr solo en ti", false, function(v)
+createToggle(soundsToggles, 120, "🔇  Silenciar correr", "Quita el correr solo en ti", runMuteEnabled, function(v)
 	runMuteEnabled = v
 	if v then runDefaultEnabled = false end
 	if Character then applyLocalRunSettings(Character) end
+	queueSaveConfig()
 end)
-createToggle(soundsToggles, 175, "💀  Kill", "Suena en cada kill + silencia el del juego", true, function(v) killSoundEnabled = v end)
+createToggle(soundsToggles, 175, "💀  Kill", "Suena en cada kill + silencia el del juego", killSoundEnabled, function(v) killSoundEnabled = v queueSaveConfig() end)
 
 -- Selector de sonido de kill (estilo lista)
 local killSelectCard = createCard(soundsPage, 200)
@@ -1155,6 +1659,7 @@ for i, info in ipairs(KILL_SOUNDS) do
 		KILL_SOUND_ID = KILL_SOUNDS[i].id
 		refreshKillSelect()
 		playToggleSound(true)
+		queueSaveConfig()
 	end)
 	killSelectBtns[i] = btn
 end
@@ -1182,11 +1687,47 @@ end
 makeTestBtn(10, "▶  Probar SALTO", function() playSfx(jumpSfx, jumpVolume) end)
 makeTestBtn(52, "▶  Probar KILL", function() playKillSfx(nil) end)
 
--- MENU PAGE
-local menuKeyValue = createKeyBind(menuPage, "Tecla del menú", "X", function(lbl)
+-- MENU PAGE — Teclas organizadas
+local keysHeader = createCard(menuPage, 70)
+createLabel(keysHeader, "⌨️  TECLAS", 18, 14, 300, 20, 14)
+createLabel(keysHeader, "Cambia cada tecla · click y pulsa la nueva", 18, 40, 400, 16, 10, Theme.SubText)
+
+local menuKeyValue = createKeyBind(menuPage, "Menú (abrir / cerrar)", MenuKey.Name, function(lbl)
 	waitingMenuKey = true
 	waitingTriggerKey, waitingHitboxKey = false, false
 	lbl.Text = "..."
+end)
+
+local menuTriggerKeyValue = createKeyBind(menuPage, "Trigger (on / off)", TriggerKey.Name, function(lbl)
+	waitingTriggerKey = true
+	waitingMenuKey, waitingHitboxKey = false, false
+	lbl.Text = "..."
+end)
+
+local menuHitboxKeyValue = createKeyBind(menuPage, "Hitbox (on / off)", HitboxKey.Name, function(lbl)
+	waitingHitboxKey = true
+	waitingMenuKey, waitingTriggerKey, waitingAimbotKey = false, false, false
+	lbl.Text = "..."
+end)
+
+local menuAimbotKeyValue = createKeyBind(menuPage, "Aimbot cursor (on / off)", AimbotKey.Name, function(lbl)
+	waitingAimbotKey = true
+	waitingMenuKey, waitingTriggerKey, waitingHitboxKey = false, false, false
+	lbl.Text = "..."
+end)
+
+-- sync labels when keys change from other pages
+task.spawn(function()
+	while gui and gui.Parent do
+		pcall(function()
+			if menuKeyValue then menuKeyValue.Text = MenuKey.Name end
+			if menuTriggerKeyValue then menuTriggerKeyValue.Text = TriggerKey.Name end
+			if menuHitboxKeyValue then menuHitboxKeyValue.Text = HitboxKey.Name end
+			if triggerKeyValue then triggerKeyValue.Text = TriggerKey.Name end
+			if hitboxKeyValue then hitboxKeyValue.Text = HitboxKey.Name end
+		end)
+		task.wait(1.0)
+	end
 end)
 
 local menuControls = createCard(menuPage, 100)
@@ -1225,6 +1766,42 @@ createToggle(menuControls, 20, "📺  Modo Streamer / Grabar", "Oculta menú + E
 end)
 
 
+
+-- Config tab content (pestaña propia)
+local configMain = createCard(configPage, 90)
+createLabel(configMain, "💾  SAVE CONFIG", 18, 14, 300, 20, 14)
+createLabel(configMain, "Guarda y restaura tu setup al volver a ejecutar", 18, 42, 400, 16, 10, Theme.SubText)
+
+local configCard = createCard(configPage, 150)
+createLabel(configCard, "Archivo local del executor", 18, 12, 320, 18, 12)
+local configStatus = createLabel(configCard, configLoaded and ("Cargada: " .. CONFIG_FILE) or "Sin archivo (se crea al guardar)", 18, 36, 420, 16, 10, Theme.SubText)
+local saveConfigBtn = Instance.new("TextButton")
+saveConfigBtn.Size = UDim2.new(1, -20, 0, 40)
+saveConfigBtn.Position = UDim2.fromOffset(10, 70)
+saveConfigBtn.BackgroundColor3 = Theme.Accent
+saveConfigBtn.BorderSizePixel = 0
+saveConfigBtn.Text = "Save Config"
+saveConfigBtn.TextColor3 = Theme.Text
+saveConfigBtn.Font = Enum.Font.GothamBold
+saveConfigBtn.TextSize = 13
+saveConfigBtn.AutoButtonColor = false
+saveConfigBtn.Parent = configCard
+addCorner(saveConfigBtn, 10)
+saveConfigBtn.MouseButton1Click:Connect(function()
+	if saveConfig() then
+		configStatus.Text = "✓ Guardada: " .. CONFIG_FILE
+		configStatus.TextColor3 = Theme.Green
+		playToggleSound(true)
+	else
+		configStatus.Text = "✗ No se pudo guardar (¿executor sin writefile?)"
+		configStatus.TextColor3 = Color3.fromRGB(255, 80, 100)
+	end
+end)
+
+local configInfo = createCard(configPage, 110)
+createLabel(configInfo, "Se guarda: teclas, rapidez, ESP, hitbox, sonidos", 18, 16, 420, 18, 11, Theme.SubText)
+createLabel(configInfo, "Auto-save al cambiar opciones · Load al ejecutar", 18, 40, 420, 18, 11, Theme.SubText)
+createLabel(configInfo, "Archivo: CH_PC_Config_(UserId).json", 18, 64, 420, 18, 10, Theme.Muted)
 
 local closeCard = createCard(menuPage, 90)
 local closeForever = Instance.new("TextButton")
@@ -1274,8 +1851,19 @@ local function CreateHitbox(char)
 end
 
 function UpdateAllHitboxes()
+	if not isInMatch() then
+		RemoveAllHitboxes()
+		return
+	end
 	for _, plr in ipairs(Players:GetPlayers()) do
-		if plr ~= LocalPlayer and plr.Character then CreateHitbox(plr.Character) end
+		if plr ~= LocalPlayer and plr.Character then
+			-- shouldTarget puede filtrar equipo cuando exista
+			if shouldTarget and not shouldTarget(plr) then
+				RemoveHitbox(plr.Character)
+			else
+				CreateHitbox(plr.Character)
+			end
+		end
 	end
 end
 
@@ -1289,19 +1877,30 @@ local function SetupPlayer(plr)
 	if plr == LocalPlayer then return end
 	local function onChar(char)
 		task.wait(0.4)
-		if HitboxEnabled then CreateHitbox(char) end
+		if HitboxEnabled and isInMatch() then CreateHitbox(char) end
 		local hum = char:FindFirstChildOfClass("Humanoid") or char:WaitForChild("Humanoid", 3)
 		if hum then
-			local killPlayed = false
 			local function tryKill()
-				-- Suena en TODA muerte de otro jugador (tuyas + compañeros + lejos)
-				if killPlayed or not killSoundEnabled then return end
-				killPlayed = true
+				if not killSoundEnabled then return end
+				-- debounce por jugador (antes solo sonaba 1 vez y se trababa)
+				if not _killSfxAt then _killSfxAt = {} end
+				local id = plr.UserId
+				local now = os.clock()
+				if _killSfxAt[id] and (now - _killSfxAt[id]) < 2.0 then return end
+				_killSfxAt[id] = now
 				playKillSfx(char)
 			end
-			hum.Died:Connect(function() RemoveHitbox(char) tryKill() end)
+			hum.Died:Connect(function()
+				RemoveHitbox(char)
+				tryKill()
+			end)
+			local lastHp = hum.Health
 			hum.HealthChanged:Connect(function(hp)
-				if hp <= 0 then RemoveHitbox(char) tryKill() end
+				if hp <= 0 and lastHp > 0 then
+					RemoveHitbox(char)
+					tryKill()
+				end
+				lastHp = hp
 			end)
 		end
 	end
@@ -1311,6 +1910,32 @@ local function SetupPlayer(plr)
 end
 for _, plr in ipairs(Players:GetPlayers()) do SetupPlayer(plr) end
 Players.PlayerAdded:Connect(SetupPlayer)
+
+-- Backup kill sfx: algunos juegos no disparan Humanoid.Died bien
+task.spawn(function()
+	local prev = {}
+	while gui and gui.Parent do
+		if killSoundEnabled then
+			for _, plr in ipairs(Players:GetPlayers()) do
+				if plr ~= LocalPlayer then
+					local char = plr.Character
+					local hum = char and char:FindFirstChildOfClass("Humanoid")
+					local alive = hum and hum.Health > 0
+					local id = plr.UserId
+					if prev[id] == true and not alive then
+						local now = os.clock()
+						if not _killSfxAt[id] or (now - _killSfxAt[id]) >= 2.0 then
+							_killSfxAt[id] = now
+							playKillSfx(char)
+						end
+					end
+					prev[id] = alive and true or false
+				end
+			end
+		end
+		task.wait(0.2)
+	end
+end)
 
 local friendCache, friendCacheTime = {}, {}
 -- Slot del hotbar manda: 1 = cuchillo (bloqueado), 2-9 = arma (OK)
@@ -1399,7 +2024,38 @@ local function isHoldingKnife()
 	return false
 end
 
-local function isFriend(plr)
+-- Solo en partida (no lobby)
+local _inMatchCached = true
+local _inMatchAt = 0
+function isInMatch()
+	local now = os.clock()
+	if now - _inMatchAt < 0.6 then
+		return _inMatchCached
+	end
+	_inMatchAt = now
+	_inMatchCached = true
+	local ok, descendants = pcall(function() return PlayerGui:GetDescendants() end)
+	if not ok or not descendants then
+		return _inMatchCached
+	end
+	for _, d in ipairs(descendants) do
+		if d:IsA("TextButton") then
+			local t = (d.Text or ""):gsub("%s+", ""):upper()
+			if t == "PLAY" and d.Visible then
+				local ok2, size = pcall(function() return d.AbsoluteSize end)
+				if ok2 and size and size.X >= 80 and size.Y >= 28 then
+					_inMatchCached = false
+					break
+				end
+			end
+		end
+	end
+	return _inMatchCached
+end
+
+-- Equipo AUTO quitado: en este juego marcaba a TODOS como aliados.
+-- Solo queda ignorar amigos de Roblox (fiable).
+function isFriend(plr)
 	if not ignoreFriends or not plr then return false end
 	local id = plr.UserId
 	local now = os.clock()
@@ -1412,24 +2068,13 @@ local function isFriend(plr)
 	return friendCache[id]
 end
 
-local function shouldTarget(plr)
+function shouldTarget(plr)
 	if not plr or plr == LocalPlayer then return false end
-	if isFriend(plr) then return false end
-	-- Team oficial Roblox
-	local myTeam, theirTeam = LocalPlayer.Team, plr.Team
-	if myTeam ~= nil and theirTeam ~= nil and myTeam == theirTeam then
+	if ignoreFriends and isFriend(plr) then
 		return false
 	end
-	-- Atributo Equipo (si el juego lo usa)
-	local myEq = LocalPlayer:GetAttribute("Equipo")
-	local theirEq = plr:GetAttribute("Equipo")
-	if myEq ~= nil and theirEq ~= nil and myEq == theirEq then
-		return false
-	end
-	-- TeamColor como fallback
-	if LocalPlayer.TeamColor and plr.TeamColor
-		and LocalPlayer.TeamColor ~= BrickColor.new("White")
-		and LocalPlayer.TeamColor == plr.TeamColor then
+	-- Team de Roblox SOLO si el juego realmente lo usa (casi nunca aquí)
+	if plr.Team ~= nil and LocalPlayer.Team ~= nil and plr.Team == LocalPlayer.Team then
 		return false
 	end
 	return true
@@ -1438,6 +2083,16 @@ end
 local rayParams = RaycastParams.new()
 rayParams.FilterType = Enum.RaycastFilterType.Exclude
 rayParams.IgnoreWater = true
+
+local function pointInsidePart(worldPos, part)
+	if not worldPos or not part then return false end
+	local localPos = part.CFrame:PointToObjectSpace(worldPos)
+	local half = part.Size * 0.5
+	-- margen pequeño para no fallar en el borde
+	return math.abs(localPos.X) <= half.X + 0.15
+		and math.abs(localPos.Y) <= half.Y + 0.15
+		and math.abs(localPos.Z) <= half.Z + 0.15
+end
 
 local function isEnemyUnderCrosshair()
 	local function resolveCharacter(hit)
@@ -1467,17 +2122,43 @@ local function isEnemyUnderCrosshair()
 		if result and checkCharacter(resolveCharacter(result.Instance)) then return true end
 	end
 
-	if Root and HitboxEnabled and HitboxSize > 0 and cam then
+	-- HITBOX: dentro del cuadro O mirando al cuadro (antes fallaba solo estando dentro)
+	if HitboxEnabled and HitboxSize > 0 then
+		local camPos = cam and cam.CFrame.Position or nil
 		for _, plr in ipairs(Players:GetPlayers()) do
 			if shouldTarget(plr) and plr.Character then
-				local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
-				local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+				local char = plr.Character
+				local hrp = char:FindFirstChild("HumanoidRootPart")
+				local hum = char:FindFirstChildOfClass("Humanoid")
 				if hrp and hum and hum.Health > 0 then
-					local dist = (Root.Position - hrp.Position).Magnitude
-					if dist <= (HitboxSize * 0.75) then
-						local dir = (hrp.Position - cam.CFrame.Position).Unit
-						if cam.CFrame.LookVector:Dot(dir) > 0.75 then
+					local hb = char:FindFirstChild("CH_VisibleHitbox")
+					-- 1) Estás DENTRO de la hitbox (tu root o la cámara)
+					if hb then
+						if Root and pointInsidePart(Root.Position, hb) then
 							return true
+						end
+						if camPos and pointInsidePart(camPos, hb) then
+							return true
+						end
+					else
+						-- sin part visual: esfera/caja por distancia al HRP
+						if Root and (Root.Position - hrp.Position).Magnitude <= (HitboxSize * 0.55) then
+							return true
+						end
+						if camPos and (camPos - hrp.Position).Magnitude <= (HitboxSize * 0.55) then
+							return true
+						end
+					end
+					-- 2) Fuera pero dentro del rango y mirando hacia el enemigo
+					if Root and cam then
+						local dist = (Root.Position - hrp.Position).Magnitude
+						if dist <= (HitboxSize * 0.85) then
+							local dir = (hrp.Position - cam.CFrame.Position)
+							if dir.Magnitude > 0.01 then
+								if cam.CFrame.LookVector:Dot(dir.Unit) > 0.55 then
+									return true
+								end
+							end
 						end
 					end
 				end
@@ -1486,6 +2167,91 @@ local function isEnemyUnderCrosshair()
 	end
 	return false
 end
+
+
+--==================== AIMBOT CURSOR (solo mouse) ====================
+UserInputService.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then holdingM1 = true end
+	if input.UserInputType == Enum.UserInputType.MouseButton2 then holdingM2 = true end
+end)
+UserInputService.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then holdingM1 = false end
+	if input.UserInputType == Enum.UserInputType.MouseButton2 then holdingM2 = false end
+end)
+
+local function aimbotMouseActive()
+	-- Solo click izq (disparar) y/o click der (apuntar)
+	local ok = false
+	if aimOnShoot and holdingM1 then ok = true end
+	if aimOnAds and holdingM2 then ok = true end
+	-- si los dos toggles están off, no apunta (evita always-on accidental)
+	return ok
+end
+
+local function getCursorAimTarget()
+	local cam = workspace.CurrentCamera
+	if not cam then return nil end
+	local mousePos = UserInputService:GetMouseLocation()
+	local best, bestD = nil, aimFovCursor
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if shouldTarget(plr) then
+			local char = plr.Character
+			if char then
+				local part = char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart")
+				local hum = char:FindFirstChildOfClass("Humanoid")
+				if part and hum and hum.Health > 0 then
+					local sp, onScreen = cam:WorldToViewportPoint(part.Position)
+					if onScreen and sp.Z > 0 then
+						local d = (Vector2.new(sp.X, sp.Y) - mousePos).Magnitude
+						if d <= bestD then
+							bestD = d
+							best = part
+						end
+					end
+				end
+			end
+		end
+	end
+	return best
+end
+
+local function moveCursorTo(worldPart)
+	local cam = workspace.CurrentCamera
+	if not cam or not worldPart then return end
+	local sp, onScreen = cam:WorldToViewportPoint(worldPart.Position)
+	if not onScreen or sp.Z <= 0 then return end
+	local mousePos = UserInputService:GetMouseLocation()
+	local dx = sp.X - mousePos.X
+	local dy = sp.Y - mousePos.Y
+	local alpha = math.clamp(1 - aimSmoothCursor, 0.08, 1)
+	dx, dy = dx * alpha, dy * alpha
+	if math.abs(dx) < 0.15 and math.abs(dy) < 0.15 then return end
+	-- SOLO cursor — no tocar Camera.CFrame
+	if mousemoverel then
+		pcall(function() mousemoverel(dx, dy) end)
+		return
+	end
+	pcall(function()
+		local vim = game:GetService("VirtualInputManager")
+		local pos = UserInputService:GetMouseLocation()
+		vim:SendMouseMoveEvent(pos.X + dx, pos.Y + dy, game)
+	end)
+end
+
+RunService.RenderStepped:Connect(function()
+	if menuClosedForever then return end
+	-- FOV siempre sigue el cursor si aimbot ON
+	if updateAimFovCircle then
+		pcall(updateAimFovCircle)
+	end
+	if not aimbotEnabled then return end
+	if isHoldingKnife and isHoldingKnife() then return end
+	if not aimbotMouseActive() then return end
+	local target = getCursorAimTarget()
+	if target then
+		moveCursorTo(target)
+	end
+end)
 
 local function clickMouse()
 	if markShotTarget then pcall(markShotTarget) end
@@ -1503,6 +2269,7 @@ end
 
 RunService.Heartbeat:Connect(function()
 	if not triggerbotEnabled then return end
+	if not isInMatch() then return end -- solo en partida (no lobby)
 	if isHoldingKnife() then return end -- tecla 1 / cuchillo: no disparar
 	local now = os.clock()
 	if now - lastTriggerShot < lastTriggerDelay then return end
@@ -1522,6 +2289,7 @@ task.spawn(function()
 						if ESP[plr] then
 							if ESP[plr].highlight then ESP[plr].highlight:Destroy() end
 							if ESP[plr].billboard then ESP[plr].billboard:Destroy() end
+							destroySkeleton(ESP[plr])
 						end
 						local char = plr.Character
 						local root = char.HumanoidRootPart
@@ -1559,16 +2327,23 @@ task.spawn(function()
 					local data = ESP[plr]
 					if data and data.label and Root then
 						local dist = (Root.Position - data.root.Position).Magnitude
-						local text = ""
-						if espNames then text = plr.Name end
-						if espHealth and data.humanoid then text = text .. (text ~= "" and "\n" or "") .. "❤️ " .. math.floor(data.humanoid.Health) end
-						if espDistance then text = text .. (text ~= "" and "\n" or "") .. "📏 " .. math.floor(dist) end
-						data.label.Text = text
+						local lines = {}
+						if espNames then table.insert(lines, plr.Name) end
+						if espHealth and data.humanoid then
+							table.insert(lines, "HP " .. math.floor(data.humanoid.Health) .. "/" .. math.floor(data.humanoid.MaxHealth))
+						end
+						if espDistance then
+							table.insert(lines, math.floor(dist) .. "m")
+						end
+						data.label.Text = table.concat(lines, "\n")
+						data.label.Visible = (#lines > 0)
 					end
+					if data then updatePlayerDrawings(data) end
 				else
 					if ESP[plr] then
 						if ESP[plr].highlight then ESP[plr].highlight:Destroy() end
 						if ESP[plr].billboard then ESP[plr].billboard:Destroy() end
+						destroySkeleton(ESP[plr])
 						ESP[plr] = nil
 					end
 				end
@@ -1577,7 +2352,28 @@ task.spawn(function()
 		if streamerMode or not espEnabled then
 			clearAllESP()
 		end
-		task.wait((espEnabled and not streamerMode) and 0.5 or 0.8)
+		task.wait((espEnabled and not streamerMode) and 0.65 or 1.0)
+	end
+end)
+
+-- Dibujo ESP (esqueleto + caja) cada frame — siempre oculta si no aplica
+RunService.RenderStepped:Connect(function()
+	if not espEnabled or streamerMode then
+		for _, data in pairs(ESP) do
+			hideDrawLines(data.skelLines)
+			hideDrawLines(data.boxLines)
+			hideDrawLines(data.headLines)
+		end
+		return
+	end
+	for plr, data in pairs(ESP) do
+		if not plr.Parent or not data.character or not data.character.Parent then
+			hideDrawLines(data.skelLines)
+			hideDrawLines(data.boxLines)
+			hideDrawLines(data.headLines)
+		else
+			updatePlayerDrawings(data)
+		end
 	end
 end)
 
@@ -1597,7 +2393,7 @@ task.spawn(function()
 		if streamerMode then
 			hideAllVisuals()
 		end
-		task.wait(0.35)
+		task.wait(1.0)
 	end
 end)
 
@@ -1632,22 +2428,32 @@ local function showPage(page, name, title, sub)
 end
 
 triggerNav.MouseButton1Click:Connect(function() showPage(triggerPage, "Trigger", "Triggerbot", "Rápido + precisión") end)
+aimbotNav.MouseButton1Click:Connect(function() showPage(aimbotPage, "Aimbot", "Aimbot Cursor", "Mueve el mouse") end)
 espNav.MouseButton1Click:Connect(function() showPage(espPage, "ESP", "ESP Rojo", "Visual") end)
 hitboxNav.MouseButton1Click:Connect(function() showPage(hitboxPage, "Hitbox", "Hitbox", "Dentro del cuadro") end)
 graphicsNav.MouseButton1Click:Connect(function() showPage(graphicsPage, "Gráficos", "Gráficos", "Eliminar texturas") end)
 soundsNav.MouseButton1Click:Connect(function() showPage(soundsPage, "Sonidos", "Sonidos", "Salto / Correr / Kill") end)
 menuNav.MouseButton1Click:Connect(function() showPage(menuPage, "Menú", "Configuración", "Panel + teclas") end)
+configNav.MouseButton1Click:Connect(function() showPage(configPage, "Config", "Save Config", "Guardar / cargar setup") end)
 
 UserInputService.InputBegan:Connect(function(input, processed)
 	if input.UserInputType == Enum.UserInputType.Keyboard then
 		if waitingTriggerKey and input.KeyCode ~= Enum.KeyCode.Unknown then
-			TriggerKey = input.KeyCode waitingTriggerKey = false triggerKeyValue.Text = TriggerKey.Name return
+			TriggerKey = input.KeyCode waitingTriggerKey = false triggerKeyValue.Text = TriggerKey.Name if menuTriggerKeyValue then menuTriggerKeyValue.Text = TriggerKey.Name end queueSaveConfig() return
 		end
 		if waitingHitboxKey and input.KeyCode ~= Enum.KeyCode.Unknown then
-			HitboxKey = input.KeyCode waitingHitboxKey = false hitboxKeyValue.Text = HitboxKey.Name return
+			HitboxKey = input.KeyCode waitingHitboxKey = false hitboxKeyValue.Text = HitboxKey.Name if menuHitboxKeyValue then menuHitboxKeyValue.Text = HitboxKey.Name end queueSaveConfig() return
 		end
 		if waitingMenuKey and input.KeyCode ~= Enum.KeyCode.Unknown then
-			MenuKey = input.KeyCode waitingMenuKey = false menuKeyValue.Text = MenuKey.Name return
+			MenuKey = input.KeyCode waitingMenuKey = false menuKeyValue.Text = MenuKey.Name queueSaveConfig() return
+		end
+		if waitingAimbotKey and input.KeyCode ~= Enum.KeyCode.Unknown then
+			AimbotKey = input.KeyCode
+			waitingAimbotKey = false
+			if aimKeyBind then aimKeyBind.Text = AimbotKey.Name end
+			if menuAimbotKeyValue then menuAimbotKeyValue.Text = AimbotKey.Name end
+			queueSaveConfig()
+			return
 		end
 	end
 	if processed then return end
@@ -1657,12 +2463,20 @@ UserInputService.InputBegan:Connect(function(input, processed)
 		triggerToggle:Set(triggerbotEnabled)
 		triggerStatus.Text = triggerbotEnabled and "Activado" or "Desactivado"
 		playToggleSound(triggerbotEnabled)
+		queueSaveConfig()
+	elseif input.KeyCode == AimbotKey then
+		aimbotEnabled = not aimbotEnabled
+		if aimToggle then aimToggle:Set(aimbotEnabled) end
+		if aimStatus then aimStatus.Text = aimbotEnabled and "Activado" or "Desactivado" end
+		playToggleSound(aimbotEnabled)
+		queueSaveConfig()
 	elseif input.KeyCode == HitboxKey then
 		HitboxEnabled = not HitboxEnabled
 		hitboxToggle:Set(HitboxEnabled)
 		hitboxStatus.Text = HitboxEnabled and "Activado" or "Desactivado"
 		playToggleSound(HitboxEnabled)
 		if HitboxEnabled then UpdateAllHitboxes() else RemoveAllHitboxes() end
+		queueSaveConfig()
 	elseif input.KeyCode == MenuKey then
 		if streamerMode then streamerMode = false setMenuVisible(true, false)
 		else setMenuVisible(not menu.Visible, false) end
@@ -1724,4 +2538,21 @@ task.defer(destroyLoading)
 task.delay(0.4, destroyLoading)
 
 if LocalPlayer.Character then applyDefaultSoundReplace(LocalPlayer.Character) end
-print("😈 CH PC | CARGADO")
+
+-- Aplicar hitbox si la config la dejó activa (UI ya coincide)
+task.defer(function()
+	if HitboxEnabled then
+		UpdateAllHitboxes()
+	end
+	if lowTexturesEnabled and setLowTextures then
+		pcall(function() setLowTextures(true) end)
+	end
+end)
+
+-- guardar defaults si no había config
+if not configLoaded then
+	task.defer(function()
+		saveConfig()
+	end)
+end
+print("😈 CH PC | CARGADO" .. (configLoaded and " | Config restaurada" or " | Config nueva"))
