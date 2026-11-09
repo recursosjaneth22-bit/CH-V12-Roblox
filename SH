@@ -1,5 +1,5 @@
 --==================================================
--- CH LIFETIME KEY + CH PC MODERN UI
+-- CH LIFETIME KEY + CH CONTROL PANEL UI
 -- Trigger rapido + Teclas configurables
 -- Sonidos: Salto / Correr / Kill (sin disparo, sin mute muerte)
 --==================================================
@@ -244,6 +244,13 @@ local aimFovCursor = 140
 local aimSmoothCursor = 0.35
 local aimOnShoot = true
 local aimOnAds = true
+local aimVisibleOnly = false -- false = atraviesa paredes
+local aimPartIndex = 1 -- 1 Head, 2 Body, 3 Root
+local AIM_PART_OPTIONS = {
+	{ name = "Cabeza", parts = { "Head" } },
+	{ name = "Cuerpo", parts = { "UpperTorso", "Torso", "HumanoidRootPart" } },
+	{ name = "Root", parts = { "HumanoidRootPart", "UpperTorso", "Torso" } },
+}
 local waitingAimbotKey = false
 local holdingM1 = false
 local holdingM2 = false
@@ -309,7 +316,7 @@ local function saveConfig()
 		return false
 	end
 	local data = {
-		version = 2,
+		version = 3,
 		MenuKey = keyToName(MenuKey),
 		TriggerKey = keyToName(TriggerKey),
 		HitboxKey = keyToName(HitboxKey),
@@ -319,7 +326,10 @@ local function saveConfig()
 		aimSmoothCursor = aimSmoothCursor,
 		aimOnShoot = aimOnShoot,
 		aimOnAds = aimOnAds,
+		aimVisibleOnly = aimVisibleOnly,
+		aimPartIndex = aimPartIndex,
 		lastTriggerDelay = lastTriggerDelay,
+		triggerbotEnabled = triggerbotEnabled,
 		ignoreFriends = ignoreFriends,
 		ignoreTeam = ignoreTeam,
 		espEnabled = espEnabled,
@@ -395,10 +405,15 @@ local function loadConfig()
 	if type(data.aimSmoothCursor) == "number" then aimSmoothCursor = data.aimSmoothCursor end
 	if data.aimOnShoot ~= nil then aimOnShoot = data.aimOnShoot == true end
 	if data.aimOnAds ~= nil then aimOnAds = data.aimOnAds == true end
+	if data.aimVisibleOnly ~= nil then aimVisibleOnly = data.aimVisibleOnly == true end
+	if type(data.aimPartIndex) == "number" then
+		aimPartIndex = math.clamp(math.floor(data.aimPartIndex), 1, 3)
+	end
 
 	if type(data.lastTriggerDelay) == "number" then
 		lastTriggerDelay = math.clamp(data.lastTriggerDelay, 0.02, 0.15)
 	end
+	if data.triggerbotEnabled ~= nil then triggerbotEnabled = data.triggerbotEnabled == true end
 	if data.ignoreFriends ~= nil then ignoreFriends = data.ignoreFriends == true end
 	if data.ignoreTeam ~= nil then ignoreTeam = data.ignoreTeam == true end
 	if data.espEnabled ~= nil then espEnabled = data.espEnabled == true end
@@ -455,20 +470,20 @@ if LocalPlayer.Character then task.spawn(setupCharacter, LocalPlayer.Character) 
 LocalPlayer.CharacterAdded:Connect(setupCharacter)
 
 local Theme = {
-	Background = Color3.fromRGB(11, 12, 16),
-	Sidebar = Color3.fromRGB(15, 16, 21),
-	Panel = Color3.fromRGB(19, 20, 26),
-	Card = Color3.fromRGB(22, 23, 30),
-	Element = Color3.fromRGB(29, 30, 38),
-	Text = Color3.fromRGB(247, 247, 250),
-	SubText = Color3.fromRGB(150, 153, 163),
-	Muted = Color3.fromRGB(92, 95, 106),
-	Accent = Color3.fromRGB(40, 40, 45),
-	AccentLight = Color3.fromRGB(60, 60, 65),
-	Green = Color3.fromRGB(70, 215, 130),
-	Track = Color3.fromRGB(40, 41, 50),
+	Background = Color3.fromRGB(8, 8, 12),
+	Sidebar = Color3.fromRGB(12, 12, 16),
+	Panel = Color3.fromRGB(14, 14, 18),
+	Card = Color3.fromRGB(18, 18, 24),
+	Element = Color3.fromRGB(28, 28, 36),
+	Text = Color3.fromRGB(255, 255, 255),
+	SubText = Color3.fromRGB(170, 170, 180),
+	Muted = Color3.fromRGB(100, 100, 110),
+	Accent = Color3.fromRGB(220, 20, 40),
+	AccentLight = Color3.fromRGB(255, 60, 80),
+	Green = Color3.fromRGB(70, 220, 120),
+	Track = Color3.fromRGB(35, 35, 42),
 	White = Color3.fromRGB(255, 255, 255),
-	Stroke = Color3.fromRGB(48, 49, 58),
+	Stroke = Color3.fromRGB(180, 20, 40),
 }
 
 local oldGui = PlayerGui:FindFirstChild("CH_PC_MODERN")
@@ -830,6 +845,11 @@ menu.BorderSizePixel = 0
 menu.Active = true
 menu.Visible = false
 menu.Parent = gui
+local menuStroke = Instance.new("UIStroke")
+menuStroke.Color = Theme.Accent
+menuStroke.Thickness = 1.5
+menuStroke.Transparency = 0.25
+menuStroke.Parent = menu
 addCorner(menu, 18)
 addStroke(menu, 0.3, 1)
 
@@ -860,7 +880,7 @@ addCorner(logoIcon, 12)
 local logoEmoji = Instance.new("TextLabel")
 logoEmoji.Size = UDim2.fromScale(1, 1)
 logoEmoji.BackgroundTransparency = 1
-logoEmoji.Text = "😈"
+logoEmoji.Text = "👑"
 logoEmoji.TextSize = 20
 logoEmoji.Parent = logoIcon
 
@@ -868,7 +888,7 @@ local logoName = Instance.new("TextLabel")
 logoName.Size = UDim2.new(1, -64, 0, 22)
 logoName.Position = UDim2.fromOffset(62, 12)
 logoName.BackgroundTransparency = 1
-logoName.Text = "CH PC"
+logoName.Text = "CH"
 logoName.TextColor3 = Theme.Text
 logoName.Font = Enum.Font.GothamBold
 logoName.TextSize = 16
@@ -889,16 +909,16 @@ logoSub.Parent = logo
 local navButtons = {}
 local function createNav(name, icon, y)
 	local button = Instance.new("TextButton")
-	button.Size = UDim2.new(1, -24, 0, 44)
+	button.Size = UDim2.new(1, -24, 0, 40)
 	button.Position = UDim2.fromOffset(12, y)
-	button.BackgroundColor3 = Theme.Sidebar
+	button.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
 	button.BorderSizePixel = 0
 	button.Text = ""
 	button.AutoButtonColor = false
 	button.Parent = sidebar
-	addCorner(button, 11)
+	addCorner(button, 10)
 	local indicator = Instance.new("Frame")
-	indicator.Size = UDim2.fromOffset(3, 22)
+	indicator.Size = UDim2.fromOffset(3, 18)
 	indicator.Position = UDim2.fromOffset(0, 11)
 	indicator.BackgroundColor3 = Theme.Accent
 	indicator.BorderSizePixel = 0
@@ -906,15 +926,15 @@ local function createNav(name, icon, y)
 	indicator.Parent = button
 	addCorner(indicator, 2)
 	local iconLabel = Instance.new("TextLabel")
-	iconLabel.Size = UDim2.fromOffset(30, 44)
+	iconLabel.Size = UDim2.fromOffset(28, 40)
 	iconLabel.Position = UDim2.fromOffset(10, 0)
 	iconLabel.BackgroundTransparency = 1
 	iconLabel.Text = icon
-	iconLabel.TextSize = 16
+	iconLabel.TextSize = 15
 	iconLabel.Parent = button
 	local label = Instance.new("TextLabel")
-	label.Size = UDim2.new(1, -50, 1, 0)
-	label.Position = UDim2.fromOffset(42, 0)
+	label.Size = UDim2.new(1, -48, 1, 0)
+	label.Position = UDim2.fromOffset(40, 0)
 	label.BackgroundTransparency = 1
 	label.Text = name
 	label.TextColor3 = Theme.SubText
@@ -922,18 +942,19 @@ local function createNav(name, icon, y)
 	label.TextSize = 12
 	label.TextXAlignment = Enum.TextXAlignment.Left
 	label.Parent = button
-	navButtons[name] = {Button = button, Indicator = indicator, Label = label}
+	navButtons[name] = {Button = button, Indicator = indicator, Label = label, Icon = iconLabel}
 	return button
 end
 
-local triggerNav = createNav("Trigger", "🔫", 92)
-local aimbotNav = createNav("Aimbot", "🎯", 136)
-local espNav = createNav("ESP", "👁", 180)
-local hitboxNav = createNav("Hitbox", "📦", 224)
-local graphicsNav = createNav("Gráficos", "🎨", 268)
-local soundsNav = createNav("Sonidos", "🔊", 312)
-local menuNav = createNav("Menú", "⚙", 356)
-local configNav = createNav("Config", "💾", 400)
+local homeNav = createNav("Inicio", "🏠", 88)
+local triggerNav = createNav("Trigger", "⚙️", 132)
+local aimbotNav = createNav("Aimbot", "🎯", 176)
+local espNav = createNav("ESP", "👁", 220)
+local hitboxNav = createNav("Hitbox", "📦", 264)
+local graphicsNav = createNav("Gráficos", "🖥", 308)
+local soundsNav = createNav("Sonidos", "🔊", 352)
+local menuNav = createNav("Menú", "☰", 396)
+local configNav = createNav("Save Config", "💾", 440)
 
 local content = Instance.new("Frame")
 content.Size = UDim2.new(1, -185, 1, -2)
@@ -1011,6 +1032,7 @@ local function createPage()
 	return page
 end
 
+local homePage = createPage()
 local triggerPage = createPage()
 local espPage = createPage()
 local hitboxPage = createPage()
@@ -1167,6 +1189,46 @@ local function createKeyBind(parent, title, currentName, onWait)
 end
 
 -- TRIGGER
+
+-- HOME / INICIO (estilo panel)
+local homeWelcome = createCard(homePage, 70)
+createLabel(homeWelcome, "⚡  Bienvenido", 18, 12, 280, 22, 14)
+createLabel(homeWelcome, "Usa el menú con confianza...", 18, 38, 400, 18, 11, Theme.SubText)
+
+local homeQuick = createCard(homePage, 260)
+createLabel(homeQuick, "Accesos rápidos", 18, 10, 280, 18, 12)
+createToggle(homeQuick, 36, "Trigger", "", false, function(v)
+	triggerbotEnabled = v
+	if triggerToggle then triggerToggle:Set(v) end
+	if triggerStatus then triggerStatus.Text = v and "Activado" or "Desactivado" end
+	playToggleSound(v)
+end)
+createToggle(homeQuick, 90, "ESP", "", espEnabled, function(v)
+	espEnabled = v
+	if espToggle then espToggle:Set(v) end
+	if espStatus then espStatus.Text = v and "Activado" or "Desactivado" end
+	if not v then clearAllESP() end
+	playToggleSound(v)
+	queueSaveConfig()
+end)
+createToggle(homeQuick, 144, "Gráficos", "", false, function(v)
+	if setLowTextures then pcall(function() setLowTextures(v) end) end
+	playToggleSound(v)
+end)
+createToggle(homeQuick, 198, "Aimbot", "", aimbotEnabled, function(v)
+	aimbotEnabled = v
+	if aimToggle then aimToggle:Set(v) end
+	if aimStatus then aimStatus.Text = v and "Activado" or "Desactivado" end
+	playToggleSound(v)
+	queueSaveConfig()
+end)
+
+local homeInfo = createCard(homePage, 120)
+createLabel(homeInfo, "ℹ  Información", 18, 10, 280, 18, 12)
+createLabel(homeInfo, "Estado: Activo", 18, 40, 200, 16, 11, Theme.Green)
+createLabel(homeInfo, "Versión: V3.1", 18, 62, 200, 16, 11, Theme.SubText)
+createLabel(homeInfo, "CH · CONTROL PANEL", 18, 84, 280, 16, 11, Theme.AccentLight)
+
 local triggerCard = createCard(triggerPage, 100)
 createLabel(triggerCard, "🔫  TRIGGERBOT", 18, 14, 250, 20, 14)
 local triggerStatus = createLabel(triggerCard, "Desactivado", 18, 42, 200, 16, 11, Theme.SubText)
@@ -1220,7 +1282,7 @@ local aimKeyBind = createKeyBind(aimbotPage, "Tecla Aimbot", AimbotKey.Name, fun
 	lbl.Text = "..."
 end)
 
-local aimWhen = createCard(aimbotPage, 140)
+local aimWhen = createCard(aimbotPage, 200)
 createLabel(aimWhen, "Activar con mouse", 18, 10, 280, 18, 12)
 createToggle(aimWhen, 36, "Click izq (disparar)", "", aimOnShoot, function(v)
 	aimOnShoot = v
@@ -1230,6 +1292,44 @@ createToggle(aimWhen, 90, "Click der (apuntar)", "", aimOnAds, function(v)
 	aimOnAds = v
 	queueSaveConfig()
 end)
+createToggle(aimWhen, 144, "Solo a la vista", "", aimVisibleOnly, function(v)
+	aimVisibleOnly = v
+	queueSaveConfig()
+end)
+
+local aimPartCard = createCard(aimbotPage, 100)
+createLabel(aimPartCard, "Parte del cuerpo", 18, 10, 280, 18, 12)
+local aimPartStatus = createLabel(aimPartCard, "Cabeza", 18, 32, 200, 16, 11, Theme.AccentLight)
+local aimPartBtns = {}
+local function refreshAimPartUI()
+	local opt = AIM_PART_OPTIONS[aimPartIndex]
+	aimPartStatus.Text = opt and opt.name or "Cabeza"
+	for i, b in ipairs(aimPartBtns) do
+		b.BackgroundColor3 = (i == aimPartIndex) and Theme.Accent or Theme.Element
+	end
+end
+local partNames = { "Cabeza", "Cuerpo", "Root" }
+for i, n in ipairs(partNames) do
+	local b = Instance.new("TextButton")
+	b.Size = UDim2.new(0.3, -8, 0, 30)
+	b.Position = UDim2.new((i - 1) * 0.33, 10, 0, 56)
+	b.BackgroundColor3 = Theme.Element
+	b.BorderSizePixel = 0
+	b.Text = n
+	b.TextColor3 = Theme.Text
+	b.Font = Enum.Font.GothamMedium
+	b.TextSize = 11
+	b.Parent = aimPartCard
+	addCorner(b, 8)
+	aimPartBtns[i] = b
+	b.MouseButton1Click:Connect(function()
+		aimPartIndex = i
+		refreshAimPartUI()
+		queueSaveConfig()
+		playToggleSound(true)
+	end)
+end
+refreshAimPartUI()
 
 local aimTune = createCard(aimbotPage, 130)
 createSlider(aimTune, 12, "FOV cursor  ", 40, 350, aimFovCursor, function(v)
@@ -2188,6 +2288,31 @@ local function aimbotMouseActive()
 	return ok
 end
 
+local aimVisParams = RaycastParams.new()
+aimVisParams.FilterType = Enum.RaycastFilterType.Exclude
+aimVisParams.IgnoreWater = true
+
+local function isAimTargetVisible(part)
+	if not aimVisibleOnly then return true end -- off = atraviesa paredes
+	if not part then return false end
+	local cam = workspace.CurrentCamera
+	if not cam then return false end
+	local origin = cam.CFrame.Position
+	local targetPos = part.Position
+	local dir = targetPos - origin
+	local dist = dir.Magnitude
+	if dist < 1 then return true end
+	local ignore = {}
+	if Character then table.insert(ignore, Character) end
+	-- ignorar personajes (solo paredes/mapa bloquean)
+	for _, plr in ipairs(Players:GetPlayers()) do
+		if plr.Character then table.insert(ignore, plr.Character) end
+	end
+	aimVisParams.FilterDescendantsInstances = ignore
+	local result = workspace:Raycast(origin, dir.Unit * dist, aimVisParams)
+	return result == nil
+end
+
 local function getCursorAimTarget()
 	local cam = workspace.CurrentCamera
 	if not cam then return nil end
@@ -2197,13 +2322,24 @@ local function getCursorAimTarget()
 		if shouldTarget(plr) then
 			local char = plr.Character
 			if char then
-				local part = char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart")
+				local part = nil
+				local opt = AIM_PART_OPTIONS[aimPartIndex] or AIM_PART_OPTIONS[1]
+				for _, pn in ipairs(opt.parts) do
+					local p = char:FindFirstChild(pn)
+					if p and p:IsA("BasePart") then
+						part = p
+						break
+					end
+				end
+				if not part then
+					part = char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart")
+				end
 				local hum = char:FindFirstChildOfClass("Humanoid")
 				if part and hum and hum.Health > 0 then
 					local sp, onScreen = cam:WorldToViewportPoint(part.Position)
 					if onScreen and sp.Z > 0 then
 						local d = (Vector2.new(sp.X, sp.Y) - mousePos).Magnitude
-						if d <= bestD then
+						if d <= bestD and isAimTargetVisible(part) then
 							bestD = d
 							best = part
 						end
@@ -2417,24 +2553,25 @@ end)
 
 local function showPage(page, name, title, sub)
 	for _, p in ipairs(pages) do p.Visible = (p == page) end
-	pageTitle.Text = title
-	pageSubtitle.Text = sub
+	pageTitle.Text = title or name
+	pageSubtitle.Text = sub or ""
 	for n, data in pairs(navButtons) do
-		local sel = (n == name)
-		data.Button.BackgroundColor3 = sel and Theme.Element or Theme.Sidebar
-		data.Label.TextColor3 = sel and Theme.Text or Theme.SubText
-		data.Indicator.Visible = sel
+		local on = (n == name)
+		data.Indicator.Visible = on
+		data.Label.TextColor3 = on and Theme.White or Theme.SubText
+		data.Button.BackgroundColor3 = on and Theme.Accent or Color3.fromRGB(18, 18, 24)
 	end
 end
 
-triggerNav.MouseButton1Click:Connect(function() showPage(triggerPage, "Trigger", "Triggerbot", "Rápido + precisión") end)
-aimbotNav.MouseButton1Click:Connect(function() showPage(aimbotPage, "Aimbot", "Aimbot Cursor", "Mueve el mouse") end)
-espNav.MouseButton1Click:Connect(function() showPage(espPage, "ESP", "ESP Rojo", "Visual") end)
-hitboxNav.MouseButton1Click:Connect(function() showPage(hitboxPage, "Hitbox", "Hitbox", "Dentro del cuadro") end)
-graphicsNav.MouseButton1Click:Connect(function() showPage(graphicsPage, "Gráficos", "Gráficos", "Eliminar texturas") end)
-soundsNav.MouseButton1Click:Connect(function() showPage(soundsPage, "Sonidos", "Sonidos", "Salto / Correr / Kill") end)
-menuNav.MouseButton1Click:Connect(function() showPage(menuPage, "Menú", "Configuración", "Panel + teclas") end)
-configNav.MouseButton1Click:Connect(function() showPage(configPage, "Config", "Save Config", "Guardar / cargar setup") end)
+homeNav.MouseButton1Click:Connect(function() showPage(homePage, "Inicio", "Inicio", "Panel principal") end)
+triggerNav.MouseButton1Click:Connect(function() showPage(triggerPage, "Trigger", "Trigger", "Disparo automático") end)
+aimbotNav.MouseButton1Click:Connect(function() showPage(aimbotPage, "Aimbot", "Aimbot", "Aimbot de cursor") end)
+espNav.MouseButton1Click:Connect(function() showPage(espPage, "ESP", "ESP", "Visual") end)
+hitboxNav.MouseButton1Click:Connect(function() showPage(hitboxPage, "Hitbox", "Hitbox", "Tamaño / visible") end)
+graphicsNav.MouseButton1Click:Connect(function() showPage(graphicsPage, "Gráficos", "Gráficos", "Rendimiento") end)
+soundsNav.MouseButton1Click:Connect(function() showPage(soundsPage, "Sonidos", "Sonidos", "Salto / Kill") end)
+menuNav.MouseButton1Click:Connect(function() showPage(menuPage, "Menú", "Menú", "Teclas") end)
+configNav.MouseButton1Click:Connect(function() showPage(configPage, "Save Config", "Save Config", "Guardar y cargar") end)
 
 UserInputService.InputBegan:Connect(function(input, processed)
 	if input.UserInputType == Enum.UserInputType.Keyboard then
@@ -2507,7 +2644,7 @@ UserInputService.InputChanged:Connect(function(input)
 	end
 end)
 
-showPage(triggerPage, "Trigger", "Triggerbot", "Rápido + precisión")
+showPage(homePage, "Inicio", "Inicio", "Panel principal")
 
 local function destroyLoading()
 	pcall(function()
